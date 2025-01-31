@@ -1,32 +1,72 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
 import { useNavigate } from "react-router-dom";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 function Dashboard({ user, db }) {
   const [quest, setQuest] = useState("Loading quest...");
   const [currency, setCurrency] = useState(0);
+  const [inventory, setInventory] = useState({});
   const navigate = useNavigate();
+
+  const handleUseItem = async (itemId) => {
+    if (!inventory[itemId] || inventory[itemId] <= 0) {
+      alert("You don't have this item!");
+      return;
+    }
+
+    try {
+      const itemRef = doc(db, "shopItems", itemId);
+      const itemSnap = await getDoc(itemRef);
+
+      if (!itemSnap.exists()) {
+        alert("Invalid item!");
+        return;
+      }
+
+      const itemData = itemSnap.data();
+      let message = "";
+
+      if (itemData.type === "hint") {
+        message = "Hint activated: " + itemData.effect;
+      } else if (itemData.type === "boost") {
+        message = "Boost applied: " + itemData.effect;
+      } else if (itemData.type === "curse") {
+        message = "Curse applied: " + itemData.effect;
+      }
+
+      const userRef = doc(db, "users", user.uid);
+      const updatedInventory = { ...inventory };
+      updatedInventory[itemId] -= 1;
+      await updateDoc(userRef, { inventory: updatedInventory });
+
+      setInventory(updatedInventory);
+      alert(message);
+    } catch (error) {
+      console.error("Error using item:", error);
+      alert("Failed to use item.");
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
 
-    // Fetch user's currency from Firestore
     const fetchUserData = async () => {
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-          setCurrency(userSnap.data().currency || 0);
+          const data = userSnap.data();
+          setCurrency(data.currency || 0);
+          setInventory(data.inventory || {});
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
     };
 
-    // Fetch the current quest from Firestore
     const fetchQuest = async () => {
       try {
-        const questRef = doc(db, "quests", "1"); // Fetch quest with ID "1"
+        const questRef = doc(db, "quests", "1");
         const questSnap = await getDoc(questRef);
         if (questSnap.exists()) {
           setQuest(questSnap.data().text);
@@ -50,8 +90,20 @@ function Dashboard({ user, db }) {
 
       <h3>Your In-Game Currency: 💰 {currency}</h3>
 
+      <h3>🎒 Your Inventory</h3>
+      {Object.keys(inventory).length === 0 ? (
+        <p>No items in inventory.</p>
+      ) : (
+        Object.entries(inventory).map(([itemId, count]) => (
+          <div key={itemId} style={{ marginBottom: "10px" }}>
+            <span>{itemId}: {count}</span>
+            <button onClick={() => handleUseItem(itemId)}>Use</button>
+          </div>
+        ))
+      )}
+
       <button onClick={() => navigate("/qrscanner")}>📸 Scan QR Code</button>
-      <button onClick={() => alert("Go to Shop!")}>🛒 Open Shop</button>
+      <button onClick={() => navigate("/shop")}>🛒 Open Shop</button>
     </div>
   );
 }

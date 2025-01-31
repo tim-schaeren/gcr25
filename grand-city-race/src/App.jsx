@@ -39,7 +39,7 @@ function App() {
       <Route path="/login" element={<Login auth={auth} />} />
       <Route path="/dashboard" element={user ? <Dashboard user={user} db={db} /> : <Navigate to="/login" />} />
       <Route path="/qrscanner" element={user ? <QRScanner user={user} db={db} /> : <Navigate to="/login" />} />
-      <Route path="/shop" element={user ? <Shop db={db} /> : <Navigate to="/login" />} />
+      <Route path="/shop" element={user ? <Shop user={user} db={db} /> : <Navigate to="/login" />} />
       <Route path="/admin" element={user && user.isAdmin ? <AdminDashboard db={db} /> : <Navigate to="/login" />} />
     </Routes>
   );
