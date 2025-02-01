@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 function Dashboard({ user, db }) {
   const [quest, setQuest] = useState(null);
   const [currency, setCurrency] = useState(0);
   const [team, setTeam] = useState(null);
+  const [locationPermission, setLocationPermission] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,6 +49,50 @@ function Dashboard({ user, db }) {
     fetchUserData();
   }, [user, db]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const startLocationTracking = () => {
+      const updateLocation = async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const userRef = doc(db, "users", user.uid);
+          await updateDoc(userRef, {
+            location: { lat: latitude, lng: longitude },
+            lastUpdated: new Date(),
+          });
+        } catch (error) {
+          console.error("Error updating location:", error);
+        }
+      };
+
+      const handleLocationError = (error) => {
+        console.error("Error getting location:", error);
+      };
+
+      navigator.geolocation.watchPosition(updateLocation, handleLocationError, {
+        enableHighAccuracy: true,
+        maximumAge: 10000,
+        timeout: 5000,
+      });
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocationPermission(true);
+          startLocationTracking();
+        },
+        (error) => {
+          setLocationPermission(false);
+          console.error("Error getting location:", error);
+        }
+      );
+    } else {
+      console.error("Geolocation is not supported by this browser.");
+    }
+  }, [user, db]);
+
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
       <h2>Welcome, {user?.email}</h2>
@@ -63,7 +108,11 @@ function Dashboard({ user, db }) {
         <p>No active quest. Scan a QR code to start!</p>
       )}
 
-      <h3>Your Team's Currency: 💰 {currency}</h3>
+      <h3>Your Team's Currency: 💰 {currency}</h3>c
+
+      {locationPermission === false && (
+        <p style={{ color: "red" }}>Location access denied. Please enable location services.</p>
+      )}
 
       <button onClick={() => navigate("/qrscanner")}>📸 Scan QR Code</button>
       <button onClick={() => navigate("/shop")}>🛒 Open Shop</button>
