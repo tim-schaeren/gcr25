@@ -8,6 +8,7 @@ import QRScanner from "./components/QRScanner";
 import Shop from "./components/Shop";
 import AdminDashboard from "./components/AdminDashboard";
 import Login from "./components/Login";
+import Solver from "./components/Solver";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDiFZdUCZrpTOq_cfWTziNzvG3jo9oCuOM",
@@ -41,6 +42,7 @@ function App() {
       <Route path="/qrscanner" element={user ? <QRScanner user={user} db={db} /> : <Navigate to="/login" />} />
       <Route path="/shop" element={user ? <Shop user={user} db={db} /> : <Navigate to="/login" />} />
       <Route path="/admin" element={user && user.isAdmin ? <AdminDashboard db={db} /> : <Navigate to="/login" />} />
+      <Route path="/solver" element={user ? <Solver user={user} db={db} /> : <Navigate to="/login" />} />
     </Routes>
   );
 }

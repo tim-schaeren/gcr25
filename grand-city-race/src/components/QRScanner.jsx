@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 function QRScanner({ user, db }) {
-  const [scannedData, setScannedData] = useState(null);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const scanner = new Html5QrcodeScanner(
@@ -15,23 +16,45 @@ function QRScanner({ user, db }) {
 
     scanner.render(
       async (decodedText) => {
-        setScannedData(decodedText);
         console.log("Scanned QR Code:", decodedText);
 
         try {
           const questId = decodedText.trim();
-          const questRef = doc(db, "quests", questId);
-          const questSnap = await getDoc(questRef);
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
 
-          if (questSnap.exists()) {
-            alert(`Quest Unlocked: ${questSnap.data().text}`);
-
-            // OPTIONAL: Update user's last completed quest
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, { lastCompletedQuest: questId });
-          } else {
-            alert("Invalid QR code! Quest not found.");
+          if (!userSnap.exists()) {
+            alert("User data not found.");
+            return;
           }
+
+          const userData = userSnap.data();
+          if (!userData.teamId) {
+            alert("User is not assigned to a team.");
+            return;
+          }
+
+          const teamRef = doc(db, "teams", userData.teamId);
+          const teamSnap = await getDoc(teamRef);
+
+          if (!teamSnap.exists()) {
+            alert("Team data not found.");
+            return;
+          }
+
+          const teamData = teamSnap.data();
+          if (teamData.progress?.previousQuests?.includes(questId)) {
+            alert("You already solved this quest!");
+            return;
+          }
+
+          // Assign the new quest
+          await updateDoc(teamRef, {
+            "progress.currentQuest": questId,
+          });
+
+          alert("Quest assigned! Returning to dashboard...");
+          navigate("/dashboard"); // Redirect to the dashboard
         } catch (err) {
           setError("Error processing QR code.");
           console.error("QR Code Processing Error:", err);
@@ -41,14 +64,12 @@ function QRScanner({ user, db }) {
     );
 
     return () => scanner.clear();
-  }, [db, user]);
+  }, [db, user, navigate]);
 
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
       <h2>Scan a QR Code</h2>
       <div id="qr-reader" style={{ width: "300px" }}></div>
-
-      {scannedData && <p>✅ Scanned: {scannedData}</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );

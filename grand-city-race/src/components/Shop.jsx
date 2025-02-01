@@ -4,84 +4,92 @@ import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore"
 function Shop({ user, db }) {
   const [shopItems, setShopItems] = useState([]);
   const [currency, setCurrency] = useState(0);
+  const [team, setTeam] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log("Shop useEffect running...");
-  
-    if (!user) {
-      console.warn("No user found, skipping fetch.");
-      return;
-    }
-  
+    if (!user) return;
+
     const fetchUserData = async () => {
       try {
-        console.log("Fetching user data...");
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-          setCurrency(userSnap.data().currency || 0);
+          const userData = userSnap.data();
+          if (!userData.teamId) {
+            console.error("User is not assigned to a team.");
+            return;
+          }
+
+          // Fetch team data
+          const teamRef = doc(db, "teams", userData.teamId);
+          const teamSnap = await getDoc(teamRef);
+          if (teamSnap.exists()) {
+            const teamData = teamSnap.data();
+            setTeam({ id: userData.teamId, ...teamData });
+            setCurrency(teamData.currency || 0);
+          } else {
+            console.error("Team data not found!");
+          }
         }
       } catch (err) {
         setError("Error fetching user data.");
         console.error(err);
       }
     };
-  
+
     const fetchShopItems = async () => {
       try {
         console.log("Fetching shop items...");
         const querySnapshot = await getDocs(collection(db, "shopItems"));
-  
-        if (querySnapshot.empty) {
-          console.warn("No shop items found in Firestore.");
-        }
-  
         const items = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-  
-        console.log("Fetched shop items:", items);
+
         setShopItems(items);
       } catch (err) {
         setError("Error fetching shop items.");
         console.error("Firestore error:", err);
       }
     };
-  
+
     fetchUserData();
     fetchShopItems();
   }, [user, db]);
-  
 
   const handlePurchase = async (item) => {
+    if (!team) {
+      alert("No team found!");
+      return;
+    }
+
     if (currency < item.price) {
-      alert("Not enough currency!");
+      alert("Not enough team currency!");
       return;
     }
 
     try {
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+      const teamRef = doc(db, "teams", team.id);
+      const teamSnap = await getDoc(teamRef);
 
-      if (!userSnap.exists()) {
-        alert("User data not found.");
+      if (!teamSnap.exists()) {
+        alert("Team data not found.");
         return;
       }
 
-      const userData = userSnap.data();
-      const updatedCurrency = userData.currency - item.price;
-      const inventory = userData.inventory || {};
+      const teamData = teamSnap.data();
+      const updatedCurrency = teamData.currency - item.price;
+      const inventory = teamData.inventory || {};
       inventory[item.id] = (inventory[item.id] || 0) + 1;
 
-      await updateDoc(userRef, {
+      await updateDoc(teamRef, {
         currency: updatedCurrency,
         inventory: inventory,
       });
 
       setCurrency(updatedCurrency);
-      alert(`You purchased: ${item.name}`);
+      alert(`Your team purchased: ${item.name}`);
     } catch (err) {
       console.error("Error processing purchase:", err);
       alert("Purchase failed. Try again.");
@@ -91,7 +99,7 @@ function Shop({ user, db }) {
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
       <h2>🛒 In-Game Shop</h2>
-      <h3>Your Balance: 💰 {currency}</h3>
+      <h3>Your Team's Balance: 💰 {currency}</h3>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
       <div>

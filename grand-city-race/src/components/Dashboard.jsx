@@ -1,51 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 
 function Dashboard({ user, db }) {
-  const [quest, setQuest] = useState("Loading quest...");
+  const [quest, setQuest] = useState(null);
   const [currency, setCurrency] = useState(0);
-  const [inventory, setInventory] = useState({});
+  const [team, setTeam] = useState(null);
   const navigate = useNavigate();
-
-  const handleUseItem = async (itemId) => {
-    if (!inventory[itemId] || inventory[itemId] <= 0) {
-      alert("You don't have this item!");
-      return;
-    }
-
-    try {
-      const itemRef = doc(db, "shopItems", itemId);
-      const itemSnap = await getDoc(itemRef);
-
-      if (!itemSnap.exists()) {
-        alert("Invalid item!");
-        return;
-      }
-
-      const itemData = itemSnap.data();
-      let message = "";
-
-      if (itemData.type === "hint") {
-        message = "Hint activated: " + itemData.effect;
-      } else if (itemData.type === "boost") {
-        message = "Boost applied: " + itemData.effect;
-      } else if (itemData.type === "curse") {
-        message = "Curse applied: " + itemData.effect;
-      }
-
-      const userRef = doc(db, "users", user.uid);
-      const updatedInventory = { ...inventory };
-      updatedInventory[itemId] -= 1;
-      await updateDoc(userRef, { inventory: updatedInventory });
-
-      setInventory(updatedInventory);
-      alert(message);
-    } catch (error) {
-      console.error("Error using item:", error);
-      alert("Failed to use item.");
-    }
-  };
 
   useEffect(() => {
     if (!user) return;
@@ -55,52 +16,54 @@ function Dashboard({ user, db }) {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-          const data = userSnap.data();
-          setCurrency(data.currency || 0);
-          setInventory(data.inventory || {});
+          const userData = userSnap.data();
+          if (!userData.teamId) {
+            console.error("User is not assigned to a team.");
+            return;
+          }
+
+          // Fetch team data
+          const teamRef = doc(db, "teams", userData.teamId);
+          const teamSnap = await getDoc(teamRef);
+          if (teamSnap.exists()) {
+            const teamData = teamSnap.data();
+            setTeam({ id: userData.teamId, ...teamData });
+            setCurrency(teamData.currency || 0);
+
+            // Fetch current quest
+            if (teamData.progress?.currentQuest) {
+              const questRef = doc(db, "quests", teamData.progress.currentQuest);
+              const questSnap = await getDoc(questRef);
+              if (questSnap.exists()) {
+                setQuest({ id: teamData.progress.currentQuest, ...questSnap.data() });
+              }
+            }
+          }
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
     };
 
-    const fetchQuest = async () => {
-      try {
-        const questRef = doc(db, "quests", "1");
-        const questSnap = await getDoc(questRef);
-        if (questSnap.exists()) {
-          setQuest(questSnap.data().text);
-        } else {
-          setQuest("No active quest found.");
-        }
-      } catch (error) {
-        console.error("Error fetching quest:", error);
-      }
-    };
-
     fetchUserData();
-    fetchQuest();
   }, [user, db]);
 
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
       <h2>Welcome, {user?.email}</h2>
-      <h3>Current Quest:</h3>
-      <p>{quest}</p>
+      {team && <h3>Team: {team.name}</h3>}
 
-      <h3>Your In-Game Currency: 💰 {currency}</h3>
-
-      <h3>🎒 Your Inventory</h3>
-      {Object.keys(inventory).length === 0 ? (
-        <p>No items in inventory.</p>
+      {quest ? (
+        <div>
+          <h3>Current Quest:</h3>
+          <p>{quest.text}</p>
+          <button onClick={() => navigate("/solver")}>🧠 Solve</button>
+        </div>
       ) : (
-        Object.entries(inventory).map(([itemId, count]) => (
-          <div key={itemId} style={{ marginBottom: "10px" }}>
-            <span>{itemId}: {count}</span>
-            <button onClick={() => handleUseItem(itemId)}>Use</button>
-          </div>
-        ))
+        <p>No active quest. Scan a QR code to start!</p>
       )}
+
+      <h3>Your Team's Currency: 💰 {currency}</h3>
 
       <button onClick={() => navigate("/qrscanner")}>📸 Scan QR Code</button>
       <button onClick={() => navigate("/shop")}>🛒 Open Shop</button>
