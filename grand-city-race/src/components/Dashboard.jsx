@@ -108,7 +108,7 @@ function Dashboard({ user, db }) {
         <p>No active quest. Scan a QR code to start!</p>
       )}
 
-      <h3>Your Team's Currency: 💰 {currency}</h3>c
+      <h3>Your Team's Currency: 💰 {currency}</h3>
 
       {locationPermission === false && (
         <p style={{ color: "red" }}>Location access denied. Please enable location services.</p>
