@@ -94,28 +94,53 @@ function Dashboard({ user, db }) {
   }, [user, db]);
 
   return (
-    <div style={{ textAlign: "center", marginTop: "50px" }}>
-      <h2>Welcome, {user?.email}</h2>
-      {team && <h3>Team: {team.name}</h3>}
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
+      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl">
+        <h2 className="text-2xl font-bold text-center">👋 Welcome, {user?.email}</h2>
+        {team && <h3 className="text-lg text-gray-400 text-center mt-2">Team: <span className="font-semibold text-white">{team.name}</span></h3>}
 
-      {quest ? (
-        <div>
-          <h3>Current Quest:</h3>
-          <p>{quest.text}</p>
-          <button onClick={() => navigate("/solver")}>🧠 Solve</button>
+        <div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
+          {quest ? (
+            <>
+              <h3 className="text-xl font-semibold">📜 Current Quest:</h3>
+              <p className="text-gray-300 mt-2">{quest.text}</p>
+              <button
+                onClick={() => navigate("/solver")}
+                className="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md"
+              >
+                🧠 Solve Quest
+              </button>
+            </>
+          ) : (
+            <p className="text-gray-400">⚡ No active quest. Scan a QR code to start!</p>
+          )}
         </div>
-      ) : (
-        <p>No active quest. Scan a QR code to start!</p>
-      )}
 
-      <h3>Your Team's Currency: 💰 {currency}</h3>
+        <div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
+          <h3 className="text-xl font-semibold">💰 Team Currency: {currency}</h3>
+        </div>
 
-      {locationPermission === false && (
-        <p style={{ color: "red" }}>Location access denied. Please enable location services.</p>
-      )}
+        {locationPermission === false && (
+          <p className="mt-4 text-red-400 text-center">
+            ⚠️ Location access denied. Please enable location services.
+          </p>
+        )}
 
-      <button onClick={() => navigate("/qrscanner")}>📸 Scan QR Code</button>
-      <button onClick={() => navigate("/shop")}>🛒 Open Shop</button>
+        <div className="flex flex-col sm:flex-row justify-between mt-6">
+          <button
+            onClick={() => navigate("/qrscanner")}
+            className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md mb-3 sm:mb-0 sm:mr-2"
+          >
+            📸 Scan QR Code
+          </button>
+          <button
+            onClick={() => navigate("/shop")}
+            className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md"
+          >
+            🛒 Open Shop
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
