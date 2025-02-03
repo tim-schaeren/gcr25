@@ -8,9 +8,42 @@ import {
 } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 
+// Define available colors for teams.
+const availableColors = [
+  { name: 'beige', hex: '#f5f5dc' },
+  { name: 'black', hex: '#000000' },
+  { name: 'blue', hex: '#0000ff' },
+  { name: 'brown', hex: '#a52a2a' },
+  { name: 'chocolate', hex: '#d2691e' },
+  { name: 'coral', hex: '#ff7f50' },
+  { name: 'crimson', hex: '#dc143c' },
+  { name: 'cyan', hex: '#00ffff' },
+  { name: 'darkviolet', hex: '#9400d3' },
+  { name: 'gold', hex: '#ffd700' },
+  { name: 'gray', hex: '#808080' },
+  { name: 'green', hex: '#008000' },
+  { name: 'khaki', hex: '#f0e68c' },
+  { name: 'lime', hex: '#00ff00' },
+  { name: 'magenta', hex: '#ff00ff' },
+  { name: 'maroon', hex: '#800000' },
+  { name: 'navy', hex: '#000080' },
+  { name: 'olive', hex: '#808000' },
+  { name: 'orange', hex: '#ffa500' },
+  { name: 'pink', hex: '#ffc0cb' },
+  { name: 'purple', hex: '#800080' },
+  { name: 'red', hex: '#ff0000' },
+  { name: 'royalblue', hex: '#4169e1' },
+  { name: 'turquoise', hex: '#40e0d0' },
+  { name: 'violet', hex: '#ee82ee' },
+  { name: 'white', hex: '#ffffff' },
+  { name: 'yellow', hex: '#ffff00' }
+]
+
 function TeamManagement ({ db }) {
   const [teams, setTeams] = useState([])
   const [newTeamName, setNewTeamName] = useState('')
+  // newTeamColor will hold an object { name, hex }
+  const [newTeamColor, setNewTeamColor] = useState(null)
   const [isCreateModalOpen, setCreateModalOpen] = useState(false)
   const [isDeleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -31,12 +64,22 @@ function TeamManagement ({ db }) {
   }, [db])
 
   const createTeam = async () => {
-    if (!newTeamName.trim()) return
+    if (!newTeamName.trim() || !newTeamColor) return
     const teamsRef = collection(db, 'teams')
-    await addDoc(teamsRef, { name: newTeamName })
+    await addDoc(teamsRef, {
+      name: newTeamName,
+      color: { name: newTeamColor.name, hex: newTeamColor.hex },
+      currency: 0,
+      inventory: {},
+      progress: {
+        currentQuest: '',
+        previousQuests: []
+      }
+    })
     setNewTeamName('')
+    setNewTeamColor(null)
     setCreateModalOpen(false)
-    // No need to fetch teams manually—the onSnapshot listener will update the table.
+    // The onSnapshot listener will update the teams array automatically.
   }
 
   const deleteTeam = async () => {
@@ -45,7 +88,7 @@ function TeamManagement ({ db }) {
     await deleteDoc(teamDoc)
     setDeleteModalOpen(false)
     setSelectedTeam(null)
-    // The onSnapshot listener will automatically update the teams array.
+    // The onSnapshot listener will update the teams array automatically.
   }
 
   return (
@@ -70,13 +113,13 @@ function TeamManagement ({ db }) {
               Admin Dashboard
             </Link>
             <Link
-              to='/admin/manage-users'
+              to='/admin/users'
               className='p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white'
             >
               Manage Users
             </Link>
             <Link
-              to='/admin/manage-teams'
+              to='/admin/teams'
               className='p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white'
             >
               Manage Teams
@@ -98,6 +141,9 @@ function TeamManagement ({ db }) {
                     Name
                   </th>
                   <th className='border border-gray-300 p-4 text-black'>ID</th>
+                  <th className='border border-gray-300 p-4 text-black'>
+                    Color
+                  </th>
                   <th className='border border-gray-300 p-4 text-black'></th>
                 </tr>
               </thead>
@@ -112,6 +158,13 @@ function TeamManagement ({ db }) {
                     </td>
                     <td className='border border-gray-300 p-4 text-black font-semibold'>
                       {team.id}
+                    </td>
+                    <td className='border border-gray-300 p-4 text-black font-semibold'>
+                      <div
+                        className='w-8 h-8 inline-block rounded'
+                        style={{ backgroundColor: team.color.hex }}
+                        title={team.color.name}
+                      ></div>
                     </td>
                     <td className='border border-gray-300 p-4 text-black font-semibold'>
                       <button
@@ -150,6 +203,23 @@ function TeamManagement ({ db }) {
               onChange={e => setNewTeamName(e.target.value)}
               className='w-full p-2 border rounded-md mb-4'
             />
+            <label className='block mb-2 font-semibold'>Team Color</label>
+            <div className='flex flex-wrap gap-2 mb-4'>
+              {availableColors.map(color => (
+                <button
+                  key={color.name}
+                  type='button'
+                  onClick={() => setNewTeamColor(color)}
+                  className={`w-10 h-10 rounded border-2 ${
+                    newTeamColor && newTeamColor.name === color.name
+                      ? 'border-blue-500'
+                      : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: color.hex }}
+                  title={`${color.name} (${color.hex})`}
+                ></button>
+              ))}
+            </div>
             <div className='flex justify-end space-x-3'>
               <button
                 onClick={() => setCreateModalOpen(false)}

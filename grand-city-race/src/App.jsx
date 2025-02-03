@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard'
 import Login from './components/Login'
 import Solver from './components/Solver'
 import GroupManagement from './components/TeamManagement'
+import UserManagement from './components/UserManagement'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -118,6 +119,16 @@ function App () {
           element={
             user && isAdmin ? (
               <GroupManagement db={db} />
+            ) : (
+              <Navigate to='/login' />
+            )
+          }
+        />
+        <Route
+          path='/admin/users'
+          element={
+            user && isAdmin ? (
+              <UserManagement db={db} />
             ) : (
               <Navigate to='/login' />
             )

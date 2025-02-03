@@ -1,6 +1,52 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { collection, getDocs, onSnapshot } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  query,
+  orderBy
+} from 'firebase/firestore'
 import { Link } from 'react-router-dom'
+
+// The helper function is no longer needed here if you always store the hex value.
+// You can remove it or keep it for fallback if needed.
+function colorNameToHex (color) {
+  const colors = {
+    beige: '#f5f5dc',
+    black: '#000000',
+    blue: '#0000ff',
+    brown: '#a52a2a',
+    chocolate: '#d2691e',
+    coral: '#ff7f50',
+    crimson: '#dc143c',
+    cyan: '#00ffff',
+    darkviolet: '#9400d3',
+    gold: '#ffd700',
+    gray: '#808080',
+    green: '#008000',
+    grey: '#808080',
+    khaki: '#f0e68c',
+    lime: '#00ff00',
+    magenta: '#ff00ff',
+    maroon: '#800000',
+    navy: '#000080',
+    olive: '#808000',
+    orange: '#ffa500',
+    pink: '#ffc0cb',
+    purple: '#800080',
+    red: '#ff0000',
+    royalblue: '#4169e1',
+    turquoise: '#40e0d0',
+    violet: '#ee82ee',
+    white: '#ffffff',
+    yellow: '#ffff00'
+  }
+  if (typeof color === 'string') {
+    const hex = colors[color.toLowerCase()]
+    return hex || color // fallback to the original value if not found
+  }
+  return color.hex || 'red'
+}
 
 function AdminDashboard ({ db }) {
   const [users, setUsers] = useState([])
@@ -23,7 +69,7 @@ function AdminDashboard ({ db }) {
     }
   }, [])
 
-  // Fetch user locations every 60 seconds.
+  // Fetch user locations (from main user documents) every 60 seconds.
   useEffect(() => {
     const fetchUserLocations = async () => {
       if (!isTabActive) return
@@ -84,12 +130,22 @@ function AdminDashboard ({ db }) {
     }
   }, [])
 
-  // Create/update AdvancedMarkerElement markers and polyline trails on the map for each user.
+  // ---------- Markers for Current Locations ----------
+  // Dependency includes teams so we can lookup team color.
   useEffect(() => {
     if (!map) return
 
     users.forEach(user => {
       const pos = new google.maps.LatLng(user.location.lat, user.location.lng)
+
+      // Determine the marker color based on the user's team.
+      let markerColor = 'red' // default fallback
+      if (user.teamId && teams.length > 0) {
+        const userTeam = teams.find(team => team.id === user.teamId)
+        if (userTeam && userTeam.color && userTeam.color.hex) {
+          markerColor = userTeam.color.hex
+        }
+      }
 
       // Calculate time difference in seconds based on lastUpdated timestamp.
       const lastUpdated = user.lastUpdated
@@ -98,10 +154,6 @@ function AdminDashboard ({ db }) {
       const timeDiffSec = lastUpdated
         ? Math.round((Date.now() - lastUpdated.getTime()) / 1000)
         : null
-
-      // if the data is older than 5 minutes, marker is grey; otherwise red.
-      const markerColor =
-        timeDiffSec !== null && timeDiffSec > 600 ? 'grey' : 'red'
       const infoText =
         timeDiffSec !== null
           ? `Last updated: ${timeDiffSec} sec ago`
@@ -113,7 +165,6 @@ function AdminDashboard ({ db }) {
         markersByUser.current[user.id].position = pos
         markersByUser.current[user.id].content.style.backgroundColor =
           markerColor
-        // Update stored lastUpdated value.
         markersByUser.current[user.id].lastUpdated = lastUpdated
       } else {
         // Create a custom HTML element to use as marker content.
@@ -143,42 +194,16 @@ function AdminDashboard ({ db }) {
           infoWindow.open({ anchor: advMarker, map })
         })
 
-        // Store additional data on the marker so we can update its info window later.
+        // Store extra data on the marker for later updates.
         advMarker.infoWindow = infoWindow
         advMarker.lastUpdated = lastUpdated
         advMarker.title = user.name || user.email
 
         markersByUser.current[user.id] = advMarker
       }
-
-      // ----- Polyline Trail for Path History -----
-      if (trailsByUser.current[user.id]) {
-        // Append the new position to the existing trail, avoiding duplicate points.
-        const path = trailsByUser.current[user.id].getPath()
-        if (
-          path.getLength() === 0 ||
-          path.getAt(path.getLength() - 1).toUrlValue() !== pos.toUrlValue()
-        ) {
-          path.push(pos)
-        }
-      } else {
-        // Create a new polyline for the user's trail.
-        const polyline = new google.maps.Polyline({
-          path: [pos],
-          geodesic: true,
-          strokeColor: markerColor,
-          strokeOpacity: 1.0,
-          strokeWeight: 2
-        })
-        polyline.setMap(map)
-        trailsByUser.current[user.id] = polyline
-      }
     })
-    // Optionally, you could remove markers/trails for users that are no longer active.
-  }, [map, users])
 
-  // New useEffect: Update open info windows every second with the current time difference.
-  useEffect(() => {
+    // Update open info windows every second so the "last updated" text is current.
     const interval = setInterval(() => {
       Object.values(markersByUser.current).forEach(marker => {
         if (marker.infoWindow && marker.infoWindow.getMap()) {
@@ -196,7 +221,60 @@ function AdminDashboard ({ db }) {
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [map, users, teams])
+
+  // ---------- Polyline Trails from Complete Firestore History ----------
+  // For each user, fetch the full locationHistory subcollection and draw the complete trail.
+  // Dependency includes teams so we can use the same color as the marker.
+  useEffect(() => {
+    if (!map || !db) return
+
+    users.forEach(user => {
+      const historyRef = collection(db, 'users', user.id, 'locationHistory')
+      // Query the complete history ordered by timestamp ascending.
+      const q = query(historyRef, orderBy('timestamp', 'asc'))
+      getDocs(q)
+        .then(snapshot => {
+          const path = snapshot.docs.map(doc => {
+            const data = doc.data()
+            return new google.maps.LatLng(data.lat, data.lng)
+          })
+          if (path.length > 0) {
+            // Determine the trail color from the user's team.
+            let trailColor = 'red' // fallback
+            if (user.teamId && teams.length > 0) {
+              const userTeam = teams.find(team => team.id === user.teamId)
+              if (userTeam && userTeam.color && userTeam.color.hex) {
+                trailColor = userTeam.color.hex
+              }
+            }
+            if (trailsByUser.current[user.id]) {
+              trailsByUser.current[user.id].setPath(path)
+              trailsByUser.current[user.id].setOptions({
+                strokeColor: trailColor
+              })
+            } else {
+              const polyline = new google.maps.Polyline({
+                path: path,
+                geodesic: true,
+                strokeColor: trailColor, // Use the hex value directly.
+                strokeOpacity: 1.0,
+                strokeWeight: 2
+              })
+              polyline.setMap(map)
+              trailsByUser.current[user.id] = polyline
+            }
+          }
+        })
+        .catch(error =>
+          console.error(
+            'Error fetching location history for user',
+            user.id,
+            error
+          )
+        )
+    })
+  }, [map, users, db, teams])
 
   return (
     <div className='min-h-screen h-screen min-w-screen w-screen bg-gray-100 py-20 px-4'>
@@ -220,7 +298,7 @@ function AdminDashboard ({ db }) {
               Admin Dashboard
             </Link>
             <Link
-              to='/admin/usermanagement'
+              to='/admin/users'
               className='p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white'
             >
               Manage Users
@@ -248,6 +326,9 @@ function AdminDashboard ({ db }) {
                     Team
                   </th>
                   <th className='border border-gray-300 p-4 text-black'>
+                    Name
+                  </th>
+                  <th className='border border-gray-300 p-4 text-black'>
                     Current Quest
                   </th>
                   <th className='border border-gray-300 p-4 text-black'>
@@ -270,6 +351,14 @@ function AdminDashboard ({ db }) {
                     key={team.id}
                     className='odd:bg-white even:bg-gray-100 hover:bg-gray-200'
                   >
+                    {/* Color swatch cell */}
+                    <td className='border border-gray-300 p-4'>
+                      <div
+                        className='w-4 h-4 inline-block rounded'
+                        style={{ backgroundColor: team.color.hex }}
+                        title={team.color.name}
+                      ></div>
+                    </td>
                     <td className='border border-gray-300 p-4 text-black font-semibold'>
                       {team.name}
                     </td>
