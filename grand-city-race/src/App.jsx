@@ -9,6 +9,7 @@ import Shop from "./components/Shop";
 import AdminDashboard from "./components/AdminDashboard";
 import Login from "./components/Login";
 import Solver from "./components/Solver";
+import GroupManagement from "./components/GroupManagement";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -79,7 +80,8 @@ function App() {
         <Route path="/qrscanner" element={user ? <QRScanner user={user} db={db} /> : <Navigate to="/login" />} />
         <Route path="/shop" element={user ? <Shop user={user} db={db} /> : <Navigate to="/login" />} />
         <Route path="/solver" element={user ? <Solver user={user} db={db} /> : <Navigate to="/login" />} />
-        <Route path="/admin" element={user && isAdmin ? <AdminDashboard db={db} /> : <Navigate to="/dashboard" />} />
+        <Route path="/admin" element={user && isAdmin ? <AdminDashboard db={db} /> : <Navigate to="/login" />} />
+        <Route path="/admin/groups" element={user && isAdmin ? <GroupManagement db={db} /> : <Navigate to="/login" />} />
       </Routes>
     </div>
   );
