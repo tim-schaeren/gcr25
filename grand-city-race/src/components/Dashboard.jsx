@@ -1,148 +1,248 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  getDocs
+} from 'firebase/firestore'
 
-function Dashboard({ user, db }) {
-  const [quest, setQuest] = useState(null);
-  const [currency, setCurrency] = useState(0);
-  const [team, setTeam] = useState(null);
-  const [locationPermission, setLocationPermission] = useState(null);
-  const navigate = useNavigate();
+// Helper functions for distance calculation.
+function deg2rad (deg) {
+  return deg * (Math.PI / 180)
+}
 
+function getDistanceFromLatLonInMeters (lat1, lon1, lat2, lon2) {
+  const R = 6371000 // Earth's radius in meters
+  const dLat = deg2rad(lat2 - lat1)
+  const dLon = deg2rad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  const d = R * c
+  return d
+}
+
+function Dashboard ({ user, db }) {
+  const [quest, setQuest] = useState(null)
+  const [currency, setCurrency] = useState(0)
+  const [team, setTeam] = useState(null)
+  const [locationPermission, setLocationPermission] = useState(null)
+  const navigate = useNavigate()
+
+  // Use a ref to store the last location that was written to locationHistory.
+  const lastHistoryLocationRef = useRef(null)
+
+  // Fetch user data (team, currency, quest, etc.)
   useEffect(() => {
-    if (!user) return;
+    if (!user) return
 
     const fetchUserData = async () => {
       try {
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
+        const userRef = doc(db, 'users', user.uid)
+        const userSnap = await getDoc(userRef)
         if (userSnap.exists()) {
-          const userData = userSnap.data();
+          const userData = userSnap.data()
           if (!userData.teamId) {
-            console.error("User is not assigned to a team.");
-            return;
+            console.error('User is not assigned to a team.')
+            return
           }
-
-          // Fetch team data
-          const teamRef = doc(db, "teams", userData.teamId);
-          const teamSnap = await getDoc(teamRef);
+          // Fetch team data.
+          const teamRef = doc(db, 'teams', userData.teamId)
+          const teamSnap = await getDoc(teamRef)
           if (teamSnap.exists()) {
-            const teamData = teamSnap.data();
-            setTeam({ id: userData.teamId, ...teamData });
-            setCurrency(teamData.currency || 0);
-
-            // Fetch current quest
+            const teamData = teamSnap.data()
+            setTeam({ id: userData.teamId, ...teamData })
+            setCurrency(teamData.currency || 0)
+            // Fetch current quest if it exists.
             if (teamData.progress?.currentQuest) {
-              const questRef = doc(db, "quests", teamData.progress.currentQuest);
-              const questSnap = await getDoc(questRef);
+              const questRef = doc(db, 'quests', teamData.progress.currentQuest)
+              const questSnap = await getDoc(questRef)
               if (questSnap.exists()) {
-                setQuest({ id: teamData.progress.currentQuest, ...questSnap.data() });
+                setQuest({
+                  id: teamData.progress.currentQuest,
+                  ...questSnap.data()
+                })
               }
             }
           }
         }
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error('Error fetching user data:', error)
       }
-    };
+    }
 
-    fetchUserData();
-  }, [user, db]);
+    fetchUserData()
+  }, [user, db])
 
+  // On mount, fetch the most recent location from the user's locationHistory subcollection.
   useEffect(() => {
-    if (!user) return;
+    if (!user) return
 
-    const startLocationTracking = () => {
-      const updateLocation = async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const userRef = doc(db, "users", user.uid);
-          await updateDoc(userRef, {
-            location: { lat: latitude, lng: longitude },
-            lastUpdated: new Date(),
-          });
-        } catch (error) {
-          console.error("Error updating location:", error);
+    const fetchLastHistory = async () => {
+      try {
+        const historyRef = collection(db, 'users', user.uid, 'locationHistory')
+        const q = query(historyRef, orderBy('timestamp', 'desc'), limit(1))
+        const historySnap = await getDocs(q)
+        if (!historySnap.empty) {
+          const lastDoc = historySnap.docs[0]
+          const data = lastDoc.data()
+          lastHistoryLocationRef.current = { lat: data.lat, lng: data.lng }
         }
-      };
+      } catch (error) {
+        console.error('Error fetching location history:', error)
+      }
+    }
 
-      const handleLocationError = (error) => {
-        console.error("Error getting location:", error);
-      };
+    fetchLastHistory()
+  }, [user, db])
 
-      navigator.geolocation.watchPosition(updateLocation, handleLocationError, {
-        enableHighAccuracy: true,
-        maximumAge: 10000,
-        timeout: 5000,
-      });
-    };
+  // Start location tracking: update location every 30 seconds.
+  useEffect(() => {
+    if (!user) return
+
+    const updateLocation = async position => {
+      const { latitude, longitude } = position.coords
+      try {
+        // Update user's current location and lastUpdated in the main document.
+        const userRef = doc(db, 'users', user.uid)
+        await updateDoc(userRef, {
+          location: { lat: latitude, lng: longitude },
+          lastUpdated: new Date()
+        })
+
+        // Determine if we should write this new position into locationHistory.
+        if (!lastHistoryLocationRef.current) {
+          // No history yet; add this location.
+          await addDoc(collection(db, 'users', user.uid, 'locationHistory'), {
+            lat: latitude,
+            lng: longitude,
+            timestamp: new Date()
+          })
+          lastHistoryLocationRef.current = { lat: latitude, lng: longitude }
+        } else {
+          // Calculate distance between the last history point and the new position.
+          const distance = getDistanceFromLatLonInMeters(
+            lastHistoryLocationRef.current.lat,
+            lastHistoryLocationRef.current.lng,
+            latitude,
+            longitude
+          )
+          console.log(`Distance moved: ${distance.toFixed(2)} meters`)
+          if (distance >= 10) {
+            await addDoc(collection(db, 'users', user.uid, 'locationHistory'), {
+              lat: latitude,
+              lng: longitude,
+              timestamp: new Date()
+            })
+            lastHistoryLocationRef.current = { lat: latitude, lng: longitude }
+          }
+        }
+      } catch (error) {
+        console.error('Error updating location:', error)
+      }
+    }
+
+    const handleLocationError = error => {
+      console.error('Error getting location:', error)
+    }
 
     if (navigator.geolocation) {
+      // Request initial location.
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocationPermission(true);
-          startLocationTracking();
+        position => {
+          setLocationPermission(true)
+          updateLocation(position)
         },
-        (error) => {
-          setLocationPermission(false);
-          console.error("Error getting location:", error);
-        }
-      );
+        error => {
+          setLocationPermission(false)
+          console.error('Error getting initial location:', error)
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      )
+      // Update location every 30 seconds.
+      const interval = setInterval(() => {
+        navigator.geolocation.getCurrentPosition(
+          updateLocation,
+          handleLocationError,
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        )
+      }, 30000)
+      return () => clearInterval(interval)
     } else {
-      console.error("Geolocation is not supported by this browser.");
+      console.error('Geolocation is not supported by this browser.')
     }
-  }, [user, db]);
+  }, [user, db]) // Notice: lastHistoryLocationRef is not in dependencies
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl">
-        <h2 className="text-2xl font-bold text-center">👋 Welcome, {user?.email}</h2>
-        {team && <h3 className="text-lg text-gray-400 text-center mt-2">Team: <span className="font-semibold text-white">{team.name}</span></h3>}
+    <div className='flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6'>
+      <div className='bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl'>
+        <h2 className='text-2xl font-bold text-center'>
+          👋 Welcome, {user?.email}
+        </h2>
+        {team && (
+          <h3 className='text-lg text-gray-400 text-center mt-2'>
+            Team: <span className='font-semibold text-white'>{team.name}</span>
+          </h3>
+        )}
 
-        <div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
+        <div className='mt-6 p-4 bg-gray-700 rounded-lg text-center'>
           {quest ? (
             <>
-              <h3 className="text-xl font-semibold">📜 Current Quest:</h3>
-              <p className="text-gray-300 mt-2">{quest.text}</p>
+              <h3 className='text-xl font-semibold'>📜 Current Quest:</h3>
+              <p className='text-gray-300 mt-2'>{quest.text}</p>
               <button
-                onClick={() => navigate("/solver")}
-                className="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md"
+                onClick={() => navigate('/solver')}
+                className='mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md'
               >
                 🧠 Solve Quest
               </button>
             </>
           ) : (
-            <p className="text-gray-400">⚡ No active quest. Scan a QR code to start!</p>
+            <p className='text-gray-400'>
+              ⚡ No active quest. Scan a QR code to start!
+            </p>
           )}
         </div>
 
-        <div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
-          <h3 className="text-xl font-semibold">💰 Team Currency: {currency}</h3>
+        <div className='mt-6 p-4 bg-gray-700 rounded-lg text-center'>
+          <h3 className='text-xl font-semibold'>
+            💰 Team Currency: {currency}
+          </h3>
         </div>
 
         {locationPermission === false && (
-          <p className="mt-4 text-red-400 text-center">
+          <p className='mt-4 text-red-400 text-center'>
             ⚠️ Location access denied. Please enable location services.
           </p>
         )}
 
-        <div className="flex flex-col sm:flex-row justify-between mt-6">
+        <div className='flex flex-col sm:flex-row justify-between mt-6'>
           <button
-            onClick={() => navigate("/qrscanner")}
-            className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md mb-3 sm:mb-0 sm:mr-2"
+            onClick={() => navigate('/qrscanner')}
+            className='w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md mb-3 sm:mb-0 sm:mr-2'
           >
             📸 Scan QR Code
           </button>
           <button
-            onClick={() => navigate("/shop")}
-            className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md"
+            onClick={() => navigate('/shop')}
+            className='w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md'
           >
             🛒 Open Shop
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default Dashboard;
+export default Dashboard
