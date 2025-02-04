@@ -34,7 +34,7 @@ function UserManagement ({ db }) {
         id: doc.id,
         ...doc.data()
       }))
-      userList.sort((a, b) => b.team.name - a.team.name)
+      //userList.sort((a, b) => b.team.name - a.team.name)
       setUsers(userList)
     })
     return () => unsubscribe()
