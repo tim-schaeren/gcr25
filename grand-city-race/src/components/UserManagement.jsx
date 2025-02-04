@@ -14,7 +14,6 @@ function UserManagement ({ db }) {
   const [teams, setTeams] = useState([])
 
   // Modal state variables.
-  const [isCreateModalOpen, setCreateModalOpen] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setDeleteModalOpen] = useState(false)
 
@@ -35,6 +34,7 @@ function UserManagement ({ db }) {
         id: doc.id,
         ...doc.data()
       }))
+      userList.sort((a, b) => b.team.name - a.team.name)
       setUsers(userList)
     })
     return () => unsubscribe()
@@ -52,26 +52,6 @@ function UserManagement ({ db }) {
     })
     return () => unsubscribe()
   }, [db])
-
-  // Create a new user.
-  const createUser = async () => {
-    if (!newUserName.trim() || !newUserEmail.trim()) return
-    const usersRef = collection(db, 'users')
-    await addDoc(usersRef, {
-      name: newUserName,
-      email: newUserEmail,
-      isAdmin: newUserIsAdmin,
-      teamId: newUserIsAdmin ? null : newUserTeamId,
-      // Optionally initialize location fields.
-      location: { lat: 0, lng: 0, lastUpdated: null }
-    })
-    // Clear fields and close modal.
-    setNewUserName('')
-    setNewUserEmail('')
-    setNewUserTeamId('')
-    setNewUserIsAdmin(false)
-    setCreateModalOpen(false)
-  }
 
   // Open edit modal and pre-populate the fields.
   const openEditModal = user => {
@@ -133,13 +113,13 @@ function UserManagement ({ db }) {
               Admin Dashboard
             </Link>
             <Link
-              to='/admin/manage-users'
+              to='/admin/users'
               className='p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white'
             >
               Manage Users
             </Link>
             <Link
-              to='/admin/manage-teams'
+              to='/admin/teams'
               className='p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white'
             >
               Manage Teams
@@ -216,77 +196,8 @@ function UserManagement ({ db }) {
               </tbody>
             </table>
           </div>
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className='bg-blue-300 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition'
-          >
-            ➕ Add User
-          </button>
         </div>
       </div>
-
-      {/* Create User Modal */}
-      {isCreateModalOpen && (
-        <div className='fixed inset-0 flex items-center justify-center bg-black bg-opacity-50'>
-          <div className='bg-white p-6 rounded-lg shadow-lg w-full max-w-md'>
-            <h3 className='text-lg font-semibold mb-4'>Add New User</h3>
-            <input
-              type='text'
-              placeholder='Name'
-              value={newUserName}
-              onChange={e => setNewUserName(e.target.value)}
-              className='w-full p-2 border rounded-md mb-4'
-            />
-            <input
-              type='email'
-              placeholder='Email'
-              value={newUserEmail}
-              onChange={e => setNewUserEmail(e.target.value)}
-              className='w-full p-2 border rounded-md mb-4'
-            />
-            <div className='flex items-center mb-4'>
-              <input
-                type='checkbox'
-                checked={newUserIsAdmin}
-                onChange={e => setNewUserIsAdmin(e.target.checked)}
-                id='isAdminCreate'
-                className='mr-2'
-              />
-              <label htmlFor='isAdminCreate' className='font-semibold'>
-                Is Admin?
-              </label>
-            </div>
-            <label className='block mb-2 font-semibold'>Team</label>
-            <select
-              value={newUserIsAdmin ? '' : newUserTeamId}
-              onChange={e => setNewUserTeamId(e.target.value)}
-              className='w-full p-2 border rounded-md mb-4'
-              disabled={newUserIsAdmin}
-            >
-              <option value=''>Select a team</option>
-              {teams.map(team => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-            <div className='flex justify-end space-x-3'>
-              <button
-                onClick={() => setCreateModalOpen(false)}
-                className='px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400'
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createUser}
-                className='px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700'
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Edit User Modal */}
       {isEditModalOpen && selectedUser && (
