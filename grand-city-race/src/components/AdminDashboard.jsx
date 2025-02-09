@@ -138,14 +138,19 @@ function AdminDashboard ({ db }) {
     users.forEach(user => {
       const pos = new google.maps.LatLng(user.location.lat, user.location.lng)
 
-      // Determine the marker color based on the user's team.
-      let markerColor = 'red' // default fallback
+      let userTeam = "no team"
+
       if (user.teamId && teams.length > 0) {
-        const userTeam = teams.find(team => team.id === user.teamId)
+        userTeam = teams.find(team => team.id === user.teamId)
+      }
+
+      // Determine the marker color based on the user's team.
+      let markerColor = 'white' // default fallback
+      
         if (userTeam && userTeam.color && userTeam.color.hex) {
           markerColor = userTeam.color.hex
         }
-      }
+      
 
       // Calculate time difference in seconds based on lastUpdated timestamp.
       const lastUpdated = user.lastUpdated
@@ -179,14 +184,14 @@ function AdminDashboard ({ db }) {
         const advMarker = new google.maps.marker.AdvancedMarkerElement({
           position: pos,
           map: map,
-          title: user.name || user.email,
+          title: (user.name || user.email) + " - " + userTeam.name,
           content: markerDiv
         })
 
         // Create an info window for this marker.
         const infoWindow = new google.maps.InfoWindow({
           content: `<div class='text-black font-bold'>${
-            user.name || user.email
+            (user.name || user.email) + " - " + userTeam.name
           }</div><div class='text-gray-700'>${infoText}</div>`
         })
 
@@ -197,7 +202,7 @@ function AdminDashboard ({ db }) {
         // Store extra data on the marker for later updates.
         advMarker.infoWindow = infoWindow
         advMarker.lastUpdated = lastUpdated
-        advMarker.title = user.name || user.email
+        advMarker.title = (user.name || user.email) + " - " + userTeam.name
 
         markersByUser.current[user.id] = advMarker
       }
@@ -241,7 +246,7 @@ function AdminDashboard ({ db }) {
           })
           if (path.length > 0) {
             // Determine the trail color from the user's team.
-            let trailColor = 'red' // fallback
+            let trailColor = 'white' // fallback
             if (user.teamId && teams.length > 0) {
               const userTeam = teams.find(team => team.id === user.teamId)
               if (userTeam && userTeam.color && userTeam.color.hex) {

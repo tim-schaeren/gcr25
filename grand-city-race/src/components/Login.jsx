@@ -25,7 +25,7 @@ function Login ({ auth }) {
       const userSnap = await getDoc(userRef)
 
       if (!userSnap.exists()) {
-        await setDoc(userRef, { email: user.email })
+        await setDoc(userRef, { email: user.email, isAdmin: false, name: "", teamId: "" })
       }
 
       navigate('/dashboard')

@@ -42,7 +42,7 @@ function Dashboard ({ user, db }) {
   // Use a ref to store the last location that was written to locationHistory.
   const lastHistoryLocationRef = useRef(null)
 
-  // Fetch user data (team, currency, quest, etc.)
+  // Fetch user data (team, quest, etc.)
   useEffect(() => {
     if (!user) return
 
@@ -108,7 +108,9 @@ function Dashboard ({ user, db }) {
 
   // Start location tracking: update location every 30 seconds.
   useEffect(() => {
-    if (!user) return
+    if (!user || userData.isAdmin) return
+
+    console.log("starting to track location")
 
     const updateLocation = async position => {
       const { latitude, longitude } = position.coords

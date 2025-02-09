@@ -79,6 +79,7 @@ function App () {
         </button>
       )}
       <Routes>
+        <Route path='/' element={<Login auth={auth} />} />
         <Route path='/login' element={<Login auth={auth} />} />
         <Route
           path='/dashboard'
