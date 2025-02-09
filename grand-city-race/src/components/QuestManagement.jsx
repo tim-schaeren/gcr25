@@ -26,8 +26,14 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Additional imports for QR code generation and ZIP file creation.
+import QRCode from 'qrcode';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+
 // ── SortableRow Component ──
-// Accepts an onClick prop and applies visual feedback when dragging.
+// Accepts an onClick prop so that clicking a row (except its action buttons)
+// will open the view details modal.
 function SortableRow({ id, children, onClick }) {
 	const {
 		attributes,
@@ -43,6 +49,7 @@ function SortableRow({ id, children, onClick }) {
 		transition,
 		backgroundColor: isDragging ? '#f0f0f0' : undefined,
 		opacity: isDragging ? 0.8 : 1,
+		cursor: 'pointer',
 	};
 
 	return (
@@ -99,7 +106,6 @@ function QuestManagement({ db }) {
 	}, [db]);
 
 	// ── CREATE QUEST ──
-	// When creating a quest, update any quest with sequence >= new quest’s position.
 	const createQuest = async () => {
 		if (
 			!newQuestName.trim() ||
@@ -114,7 +120,7 @@ function QuestManagement({ db }) {
 		const batch = writeBatch(db);
 		const questsRef = collection(db, 'quests');
 
-		// Increment the sequence of existing quests with sequence >= newSeq.
+		// Increment sequence of any quest whose sequence is >= newSeq.
 		quests.forEach((quest) => {
 			if (quest.sequence >= newSeq) {
 				const questDocRef = doc(db, 'quests', quest.id);
@@ -134,7 +140,7 @@ function QuestManagement({ db }) {
 
 		await batch.commit();
 
-		// Clear fields and close modal.
+		// Clear inputs and close modal.
 		setNewQuestName('');
 		setNewQuestSequence('');
 		setNewQuestHint('');
@@ -144,7 +150,6 @@ function QuestManagement({ db }) {
 	};
 
 	// ── DELETE QUEST ──
-	// When deleting, decrement the sequence for all quests with higher sequence.
 	const deleteQuest = async () => {
 		if (!selectedQuestForDelete) return;
 
@@ -169,7 +174,6 @@ function QuestManagement({ db }) {
 	};
 
 	// ── EDIT QUEST ──
-	// Open edit modal with the quest's current values.
 	const openEditModal = (quest) => {
 		setSelectedQuestForEdit(quest);
 		setEditQuestName(quest.name || '');
@@ -180,29 +184,27 @@ function QuestManagement({ db }) {
 		setEditModalOpen(true);
 	};
 
-	// Update quest values and adjust ordering if sequence changed.
 	const updateQuest = async () => {
 		if (!selectedQuestForEdit) return;
 		const newSeq = parseInt(editQuestSequence, 10);
 		if (isNaN(newSeq)) return;
 
-		// Get a sorted copy of quests and remove the one being edited.
+		// Create an ordered list without the quest being edited.
 		const sortedQuests = quests.slice().sort((a, b) => a.sequence - b.sequence);
 		const filteredQuests = sortedQuests.filter(
 			(q) => q.id !== selectedQuestForEdit.id
 		);
-		// Clamp the new sequence between 1 and filteredQuests.length+1.
 		const effectiveLength = filteredQuests.length + 1;
 		const clampedSeq = Math.max(1, Math.min(newSeq, effectiveLength));
 
-		// Create updated quest object.
+		// Build the updated quest object.
 		const updatedQuest = {
 			...selectedQuestForEdit,
 			name: editQuestName,
 			hint: editQuestHint,
 			text: editQuestText,
 			answer: editQuestAnswer,
-			sequence: clampedSeq, // temporary
+			sequence: clampedSeq, // temporary value
 		};
 
 		// Insert the updated quest at the desired position.
@@ -238,10 +240,41 @@ function QuestManagement({ db }) {
 	};
 
 	// ── VIEW DETAILS MODAL ──
-	// Opens when a row is clicked to show all quest details.
 	const openViewModal = (quest) => {
 		setSelectedQuestForView(quest);
 		setViewModalOpen(true);
+	};
+
+	// ── QR CODE FUNCTIONS ──
+	// Generate and download a QR code image for a single quest ID.
+	const downloadQRCode = async (questId) => {
+		try {
+			const url = await QRCode.toDataURL(questId);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = `${questId}.png`;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+		} catch (err) {
+			console.error('Error generating QR code:', err);
+		}
+	};
+
+	// Generate QR codes for all quests, package them into a ZIP file, and download.
+	const generateAllQRCodes = async () => {
+		const zip = new JSZip();
+		const folder = zip.folder('qrcodes');
+		// Use the sorted quests array.
+		const promises = sortedQuests.map(async (quest) => {
+			const url = await QRCode.toDataURL(quest.id);
+			const base64Data = url.split(',')[1];
+			folder.file(`${quest.id}.png`, base64Data, { base64: true });
+		});
+		await Promise.all(promises);
+		zip.generateAsync({ type: 'blob' }).then((content) => {
+			saveAs(content, 'qrcodes.zip');
+		});
 	};
 
 	// ── dnd-kit Setup ──
@@ -376,9 +409,18 @@ function QuestManagement({ db }) {
 															setSelectedQuestForDelete(quest.id);
 															setDeleteModalOpen(true);
 														}}
-														className="text-red-600 hover:text-red-800"
+														className="text-red-600 hover:text-red-800 mr-2"
 													>
 														❌ Delete
+													</button>
+													<button
+														onClick={(e) => {
+															e.stopPropagation();
+															downloadQRCode(quest.id);
+														}}
+														className="text-green-600 hover:text-green-800"
+													>
+														QR
 													</button>
 												</td>
 											</SortableRow>
@@ -388,12 +430,20 @@ function QuestManagement({ db }) {
 							</DndContext>
 						</table>
 					</div>
-					<button
-						onClick={() => setCreateModalOpen(true)}
-						className="bg-blue-300 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-					>
-						➕ Create Quest
-					</button>
+					<div className="flex space-x-4">
+						<button
+							onClick={() => setCreateModalOpen(true)}
+							className="bg-blue-300 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+						>
+							➕ Create Quest
+						</button>
+						<button
+							onClick={generateAllQRCodes}
+							className="bg-green-300 text-black px-4 py-2 rounded-lg hover:bg-green-700 transition"
+						>
+							Generate QR Codes
+						</button>
+					</div>
 				</div>
 			</div>
 
