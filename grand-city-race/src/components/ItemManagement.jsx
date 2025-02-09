@@ -8,87 +8,63 @@ import {
 } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 
-// Define available colors for teams.
-const availableColors = [
-	{ name: 'beige', hex: '#f5f5dc' },
-	{ name: 'black', hex: '#000000' },
-	{ name: 'blue', hex: '#0000ff' },
-	{ name: 'brown', hex: '#a52a2a' },
-	{ name: 'chocolate', hex: '#d2691e' },
-	{ name: 'coral', hex: '#ff7f50' },
-	{ name: 'crimson', hex: '#dc143c' },
-	{ name: 'cyan', hex: '#00ffff' },
-	{ name: 'darkviolet', hex: '#9400d3' },
-	{ name: 'gold', hex: '#ffd700' },
-	{ name: 'gray', hex: '#808080' },
-	{ name: 'green', hex: '#008000' },
-	{ name: 'khaki', hex: '#f0e68c' },
-	{ name: 'lime', hex: '#00ff00' },
-	{ name: 'magenta', hex: '#ff00ff' },
-	{ name: 'maroon', hex: '#800000' },
-	{ name: 'navy', hex: '#000080' },
-	{ name: 'olive', hex: '#808000' },
-	{ name: 'orange', hex: '#ffa500' },
-	{ name: 'pink', hex: '#ffc0cb' },
-	{ name: 'purple', hex: '#800080' },
-	{ name: 'red', hex: '#ff0000' },
-	{ name: 'royalblue', hex: '#4169e1' },
-	{ name: 'turquoise', hex: '#40e0d0' },
-	{ name: 'violet', hex: '#ee82ee' },
-	{ name: 'white', hex: '#ffffff' },
-	{ name: 'yellow', hex: '#ffff00' },
-];
-
-function TeamManagement({ db }) {
-	const [teams, setTeams] = useState([]);
-	const [newTeamName, setNewTeamName] = useState('');
-	// newTeamColor will hold an object { name, hex }
-	const [newTeamColor, setNewTeamColor] = useState(null);
+function ItemsManagement({ db }) {
+	const [items, setItems] = useState([]);
+	const [newItemName, setNewItemName] = useState('');
+	const [newItemDescription, setNewItemDescription] = useState('');
+	const [newItemEffect, setNewItemEffect] = useState('');
+	const [newItemPrice, setNewItemPrice] = useState('');
+	const [newItemType, setNewItemType] = useState('');
 	const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
-	const [selectedTeam, setSelectedTeam] = useState(null);
+	const [selectedItem, setSelectedItem] = useState(null);
 
+	// Listen for real‑time updates for the "items" collection.
 	useEffect(() => {
-		const teamsRef = collection(db, 'teams');
-		// Subscribe to real-time updates for the teams collection.
-		const unsubscribe = onSnapshot(teamsRef, (snapshot) => {
-			const teamList = snapshot.docs.map((doc) => ({
+		const itemsRef = collection(db, 'items');
+		const unsubscribe = onSnapshot(itemsRef, (snapshot) => {
+			const itemList = snapshot.docs.map((doc) => ({
 				id: doc.id,
 				...doc.data(),
 			}));
-			setTeams(teamList);
+			setItems(itemList);
 		});
-
-		// Clean up the listener when the component unmounts.
 		return () => unsubscribe();
 	}, [db]);
 
-	const createTeam = async () => {
-		if (!newTeamName.trim() || !newTeamColor) return;
-		const teamsRef = collection(db, 'teams');
-		await addDoc(teamsRef, {
-			name: newTeamName,
-			color: { name: newTeamColor.name, hex: newTeamColor.hex },
-			currency: 0,
-			inventory: {},
-			progress: {
-				currentQuest: '',
-				previousQuests: [],
-			},
+	// Create a new item.
+	const createItem = async () => {
+		if (
+			!newItemName.trim() ||
+			!newItemDescription.trim() ||
+			!newItemEffect.trim() ||
+			!newItemPrice ||
+			!newItemType.trim()
+		)
+			return;
+		const itemsRef = collection(db, 'items');
+		await addDoc(itemsRef, {
+			name: newItemName,
+			description: newItemDescription,
+			effect: newItemEffect,
+			price: parseFloat(newItemPrice),
+			type: newItemType,
 		});
-		setNewTeamName('');
-		setNewTeamColor(null);
+		setNewItemName('');
+		setNewItemDescription('');
+		setNewItemEffect('');
+		setNewItemPrice('');
+		setNewItemType('');
 		setCreateModalOpen(false);
-		// The onSnapshot listener will update the teams array automatically.
 	};
 
-	const deleteTeam = async () => {
-		if (!selectedTeam) return;
-		const teamDoc = doc(db, 'teams', selectedTeam);
-		await deleteDoc(teamDoc);
+	// Delete an item.
+	const deleteItem = async () => {
+		if (!selectedItem) return;
+		const itemDoc = doc(db, 'items', selectedItem);
+		await deleteDoc(itemDoc);
 		setDeleteModalOpen(false);
-		setSelectedTeam(null);
-		// The onSnapshot listener will update the teams array automatically.
+		setSelectedItem(null);
 	};
 
 	return (
@@ -141,10 +117,9 @@ function TeamManagement({ db }) {
 
 				{/* Main Content */}
 				<div className="flex-1">
-					{/* Team Management */}
 					<div className="bg-white shadow-lg rounded-lg p-6 mb-8">
 						<h2 className="text-2xl font-semibold text-gray-700 mb-4">
-							📂 Team Management
+							🛍️ Items Management
 						</h2>
 						<table className="w-full text-center border border-gray-300 rounded-lg overflow-hidden">
 							<thead className="bg-gray-300 text-gray-700">
@@ -152,36 +127,46 @@ function TeamManagement({ db }) {
 									<th className="border border-gray-300 p-4 text-black">
 										Name
 									</th>
-									<th className="border border-gray-300 p-4 text-black">ID</th>
 									<th className="border border-gray-300 p-4 text-black">
-										Color
+										Description
+									</th>
+									<th className="border border-gray-300 p-4 text-black">
+										Effect
+									</th>
+									<th className="border border-gray-300 p-4 text-black">
+										Price
+									</th>
+									<th className="border border-gray-300 p-4 text-black">
+										Type
 									</th>
 									<th className="border border-gray-300 p-4 text-black"></th>
 								</tr>
 							</thead>
 							<tbody>
-								{teams.map((team) => (
+								{items.map((item) => (
 									<tr
-										key={team.id}
+										key={item.id}
 										className="odd:bg-white even:bg-gray-100 hover:bg-gray-200"
 									>
 										<td className="border border-gray-300 p-4 text-black font-semibold">
-											{team.name}
+											{item.name}
 										</td>
-										<td className="border border-gray-300 p-4 text-black font-semibold">
-											{team.id}
+										<td className="border border-gray-300 p-4 text-black">
+											{item.description}
 										</td>
-										<td className="border border-gray-300 p-4 text-black font-semibold">
-											<div
-												className="w-8 h-8 inline-block rounded"
-												style={{ backgroundColor: team.color.hex }}
-												title={team.color.name}
-											></div>
+										<td className="border border-gray-300 p-4 text-black">
+											{item.effect}
+										</td>
+										<td className="border border-gray-300 p-4 text-black">
+											{item.price}
+										</td>
+										<td className="border border-gray-300 p-4 text-black">
+											{item.type}
 										</td>
 										<td className="border border-gray-300 p-4 text-black font-semibold">
 											<button
 												onClick={() => {
-													setSelectedTeam(team.id);
+													setSelectedItem(item.id);
 													setDeleteModalOpen(true);
 												}}
 												className="text-red-600 hover:text-red-800"
@@ -198,40 +183,51 @@ function TeamManagement({ db }) {
 						onClick={() => setCreateModalOpen(true)}
 						className="bg-blue-300 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition"
 					>
-						➕ Create Team
+						➕ Create Item
 					</button>
 				</div>
 			</div>
 
-			{/* Create Team Modal */}
+			{/* Create Item Modal */}
 			{isCreateModalOpen && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-					<div className="bg-white p-6 rounded-lg shadow-lg">
-						<h3 className="text-lg font-semibold mb-4">Create New Team</h3>
+					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+						<h3 className="text-lg font-semibold mb-4">Create New Item</h3>
 						<input
 							type="text"
-							placeholder="Team Name"
-							value={newTeamName}
-							onChange={(e) => setNewTeamName(e.target.value)}
+							placeholder="Name"
+							value={newItemName}
+							onChange={(e) => setNewItemName(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
-						<label className="block mb-2 font-semibold">Team Color</label>
-						<div className="flex flex-wrap gap-2 mb-4">
-							{availableColors.map((color) => (
-								<button
-									key={color.name}
-									type="button"
-									onClick={() => setNewTeamColor(color)}
-									className={`w-10 h-10 rounded border-2 ${
-										newTeamColor && newTeamColor.name === color.name
-											? 'border-blue-500'
-											: 'border-transparent'
-									}`}
-									style={{ backgroundColor: color.hex }}
-									title={`${color.name} (${color.hex})`}
-								></button>
-							))}
-						</div>
+						<input
+							type="text"
+							placeholder="Description"
+							value={newItemDescription}
+							onChange={(e) => setNewItemDescription(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						<input
+							type="text"
+							placeholder="Effect"
+							value={newItemEffect}
+							onChange={(e) => setNewItemEffect(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						<input
+							type="number"
+							placeholder="Price"
+							value={newItemPrice}
+							onChange={(e) => setNewItemPrice(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						<input
+							type="text"
+							placeholder="Type"
+							value={newItemType}
+							onChange={(e) => setNewItemType(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
 						<div className="flex justify-end space-x-3">
 							<button
 								onClick={() => setCreateModalOpen(false)}
@@ -240,7 +236,7 @@ function TeamManagement({ db }) {
 								Cancel
 							</button>
 							<button
-								onClick={createTeam}
+								onClick={createItem}
 								className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
 							>
 								Create
@@ -250,12 +246,12 @@ function TeamManagement({ db }) {
 				</div>
 			)}
 
-			{/* Delete Team Modal */}
-			{isDeleteModalOpen && (
+			{/* Delete Item Modal */}
+			{isDeleteModalOpen && selectedItem && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg">
-						<h3 className="text-lg font-semibold mb-4">Delete Team</h3>
-						<p>Are you sure you want to delete this team?</p>
+						<h3 className="text-lg font-semibold mb-4">Delete Item</h3>
+						<p>Are you sure you want to delete this item?</p>
 						<div className="flex justify-end space-x-3 mt-4">
 							<button
 								onClick={() => setDeleteModalOpen(false)}
@@ -264,7 +260,7 @@ function TeamManagement({ db }) {
 								Cancel
 							</button>
 							<button
-								onClick={deleteTeam}
+								onClick={deleteItem}
 								className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
 							>
 								Delete
@@ -277,4 +273,4 @@ function TeamManagement({ db }) {
 	);
 }
 
-export default TeamManagement;
+export default ItemsManagement;

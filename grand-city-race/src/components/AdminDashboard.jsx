@@ -292,6 +292,12 @@ function AdminDashboard({ db }) {
 						>
 							Quests
 						</Link>
+						<Link
+							to="/admin/items"
+							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
+						>
+							Items
+						</Link>
 					</nav>
 				</aside>
 

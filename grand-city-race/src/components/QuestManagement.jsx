@@ -269,7 +269,7 @@ function QuestManagement({ db }) {
 		const promises = sortedQuests.map(async (quest) => {
 			const url = await QRCode.toDataURL(quest.id);
 			const base64Data = url.split(',')[1];
-			folder.file(`${quest.id}.png`, base64Data, { base64: true });
+			folder.file(`${quest.sequence}.png`, base64Data, { base64: true });
 		});
 		await Promise.all(promises);
 		zip.generateAsync({ type: 'blob' }).then((content) => {
@@ -343,6 +343,12 @@ function QuestManagement({ db }) {
 							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
 						>
 							Quests
+						</Link>
+						<Link
+							to="/admin/items"
+							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
+						>
+							Items
 						</Link>
 					</nav>
 				</aside>

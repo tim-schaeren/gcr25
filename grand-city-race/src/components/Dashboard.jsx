@@ -10,6 +10,7 @@ import {
 	orderBy,
 	limit,
 	getDocs,
+	where,
 } from 'firebase/firestore';
 
 // Helper functions for distance calculation.
@@ -36,6 +37,7 @@ function Dashboard({ user, db }) {
 	const [quest, setQuest] = useState(null);
 	const [currency, setCurrency] = useState(0);
 	const [team, setTeam] = useState(null);
+	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
 	const navigate = useNavigate();
 
@@ -63,7 +65,8 @@ function Dashboard({ user, db }) {
 						const teamData = teamSnap.data();
 						setTeam({ id: userData.teamId, ...teamData });
 						setCurrency(teamData.currency || 0);
-						// Fetch current quest if it exists.
+
+						// If there is an active quest, fetch and display it.
 						if (teamData.progress?.currentQuest) {
 							const questRef = doc(
 								db,
@@ -76,6 +79,32 @@ function Dashboard({ user, db }) {
 									id: teamData.progress.currentQuest,
 									...questSnap.data(),
 								});
+							}
+						} else if (
+							teamData.progress?.previousQuests &&
+							teamData.progress.previousQuests.length > 0
+						) {
+							// No active quest—but the team has solved at least one quest.
+							// Fetch the last solved quest to determine its sequence.
+							const solvedQuests = teamData.progress.previousQuests;
+							const lastSolvedQuestId = solvedQuests[solvedQuests.length - 1];
+							const lastQuestRef = doc(db, 'quests', lastSolvedQuestId);
+							const lastQuestSnap = await getDoc(lastQuestRef);
+							if (lastQuestSnap.exists()) {
+								const lastQuestData = lastQuestSnap.data();
+								const nextSequence = lastQuestData.sequence + 1;
+								// Query the next quest (by sequence) to get its hint.
+								const questsRef = collection(db, 'quests');
+								const qNext = query(
+									questsRef,
+									where('sequence', '==', nextSequence)
+								);
+								const nextSnapshot = await getDocs(qNext);
+								if (!nextSnapshot.empty) {
+									const nextQuestDoc = nextSnapshot.docs[0];
+									const nextQuestData = nextQuestDoc.data();
+									setNextHint(nextQuestData.hint);
+								}
 							}
 						}
 					}
@@ -187,7 +216,7 @@ function Dashboard({ user, db }) {
 		} else {
 			console.error('Geolocation is not supported by this browser.');
 		}
-	}, [user, db]); // Notice: lastHistoryLocationRef is not in dependencies
+	}, [user, db]); // Note: lastHistoryLocationRef is not in dependencies
 
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
@@ -213,9 +242,18 @@ function Dashboard({ user, db }) {
 								🧠 Solve Quest
 							</button>
 						</>
+					) : nextHint ? (
+						// If no active quest, but a hint exists, show the next quest hint.
+						<div>
+							<h3 className="text-xl font-semibold">🔑 Next Quest Hint:</h3>
+							<p className="text-gray-300 mt-2">{nextHint}</p>
+							<p className="text-gray-400 mt-2">
+								Find the QR code and scan it!
+							</p>
+						</div>
 					) : (
 						<p className="text-gray-400">
-							⚡ No active quest. Scan a QR code to start!
+							⚡ Scan a QR code to start your first quest!
 						</p>
 					)}
 				</div>

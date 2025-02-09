@@ -12,6 +12,7 @@ import Solver from './components/Solver';
 import GroupManagement from './components/TeamManagement';
 import UserManagement from './components/UserManagement';
 import QuestManagement from './components/QuestManagement';
+import ItemManagement from './components/ItemManagement';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -141,6 +142,16 @@ function App() {
 					element={
 						user && isAdmin ? (
 							<QuestManagement db={db} />
+						) : (
+							<Navigate to="/login" />
+						)
+					}
+				/>
+				<Route
+					path="/admin/items"
+					element={
+						user && isAdmin ? (
+							<ItemManagement db={db} />
 						) : (
 							<Navigate to="/login" />
 						)
