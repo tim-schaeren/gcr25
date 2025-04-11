@@ -39,6 +39,9 @@ function Dashboard({ user, db }) {
 	const [team, setTeam] = useState(null);
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
+	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
+	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
+
 	const navigate = useNavigate();
 
 	// Use a ref to store the last location that was written to locationHistory.
@@ -229,18 +232,32 @@ function Dashboard({ user, db }) {
 						Team: <span className="font-semibold text-white">{team.name}</span>
 					</h3>
 				)}
-
 				<div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
 					{quest ? (
 						<>
 							<h3 className="text-xl font-semibold">📜 Current Quest:</h3>
-							{/* Conditionally show the quest image if it exists */}
+							{/* Display quest image (scaled with object-fit: contain) if present */}
 							{quest.imageUrl && (
-								<img
-									src={quest.imageUrl}
-									alt="Quest"
-									className="w-full rounded-md mb-4"
-								/>
+								<div
+									onClick={() => {
+										setFullScreenImageUrl(quest.imageUrl);
+										setIsFullScreenImageOpen(true);
+									}}
+									className="cursor-pointer mx-auto mb-4"
+									style={{ maxWidth: '300px' }}
+								>
+									<img
+										src={quest.imageUrl}
+										alt="Quest"
+										style={{
+											width: '100%',
+											height: '100%',
+											maxHeight: '300px',
+											objectFit: 'contain',
+										}}
+										className="rounded-md"
+									/>
+								</div>
 							)}
 							<p className="text-gray-300 mt-2">{quest.text}</p>
 							<button
@@ -265,19 +282,16 @@ function Dashboard({ user, db }) {
 						</p>
 					)}
 				</div>
-
 				<div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
 					<h3 className="text-xl font-semibold">
 						💰 Team Currency: {currency}
 					</h3>
 				</div>
-
 				{locationPermission === false && (
 					<p className="mt-4 text-red-400 text-center">
 						⚠️ Location access denied. Please enable location services.
 					</p>
 				)}
-
 				<div className="flex flex-col sm:flex-row justify-between mt-6">
 					<button
 						onClick={() => navigate('/qrscanner')}
@@ -293,6 +307,24 @@ function Dashboard({ user, db }) {
 					</button>
 				</div>
 			</div>
+			{/* Full-Screen Image Overlay */}
+			{isFullScreenImageOpen && (
+				<div
+					onClick={() => setIsFullScreenImageOpen(false)}
+					className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 cursor-pointer"
+				>
+					<img
+						src={fullScreenImageUrl}
+						alt="Full Screen"
+						style={{
+							maxWidth: '90%',
+							maxHeight: '90%',
+							objectFit: 'contain',
+						}}
+						className="rounded-md"
+					/>
+				</div>
+			)}
 		</div>
 	);
 }
