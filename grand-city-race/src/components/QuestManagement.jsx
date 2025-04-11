@@ -73,9 +73,10 @@ function QuestManagement({ db, storage }) {
 	const [newQuestHint, setNewQuestHint] = useState('');
 	const [newQuestText, setNewQuestText] = useState('');
 	const [newQuestAnswer, setNewQuestAnswer] = useState('');
-	// New image state for creation
-	const [newQuestImageFile, setNewQuestImageFile] = useState(null);
-	const [newQuestImagePreview, setNewQuestImagePreview] = useState(null);
+	// Combined media state for creation (image OR video)
+	const [newQuestMediaFile, setNewQuestMediaFile] = useState(null);
+	const [newQuestMediaPreview, setNewQuestMediaPreview] = useState(null);
+	const [newQuestMediaType, setNewQuestMediaType] = useState(null); // "image" or "video"
 	const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 
 	// Delete modal state.
@@ -90,11 +91,12 @@ function QuestManagement({ db, storage }) {
 	const [editQuestHint, setEditQuestHint] = useState('');
 	const [editQuestText, setEditQuestText] = useState('');
 	const [editQuestAnswer, setEditQuestAnswer] = useState('');
-	// Image state for editing:
-	const [editQuestImageFile, setEditQuestImageFile] = useState(null);
-	const [editQuestImagePreview, setEditQuestImagePreview] = useState(null);
-	// Flag to indicate if user wants to remove any currently stored image (even without selecting a new one)
-	const [shouldDeleteExistingImage, setShouldDeleteExistingImage] =
+	// Combined media state for editing
+	const [editQuestMediaFile, setEditQuestMediaFile] = useState(null);
+	const [editQuestMediaPreview, setEditQuestMediaPreview] = useState(null);
+	const [editQuestMediaType, setEditQuestMediaType] = useState(null); // "image" or "video"
+	// Flag to indicate if user wants to remove any currently stored media
+	const [shouldDeleteExistingMedia, setShouldDeleteExistingMedia] =
 		useState(false);
 
 	// View Details modal state.
@@ -103,6 +105,8 @@ function QuestManagement({ db, storage }) {
 
 	// Upload error state
 	const [uploadError, setUploadError] = useState(null);
+	// Upload loading state
+	const [isUploading, setIsUploading] = useState(false);
 
 	// ── Firestore Listener ──
 	useEffect(() => {
@@ -117,41 +121,69 @@ function QuestManagement({ db, storage }) {
 		return () => unsubscribe();
 	}, [db]);
 
-	// ── File Input Handlers ──
-	const handleNewQuestImageChange = (e) => {
+	// ── Media File Input Handlers ──
+	const handleNewQuestMediaChange = (e) => {
 		const file = e.target.files[0];
 		if (file) {
-			const validTypes = ['image/jpeg', 'image/png'];
-			const maxSize = 5 * 1024 * 1024; // 5 MB
-			if (!validTypes.includes(file.type)) {
-				alert('Only JPEG and PNG files are allowed');
-				return;
+			if (file.type.startsWith('image/')) {
+				const maxSize = 5 * 1024 * 1024; // 5MB
+				if (file.size > maxSize) {
+					alert('Image file size should be less than 5MB');
+					return;
+				}
+				setNewQuestMediaFile(file);
+				setNewQuestMediaPreview(URL.createObjectURL(file));
+				setNewQuestMediaType('image');
+			} else if (file.type.startsWith('video/')) {
+				// Allow MP4 and MOV (MIME type "video/mp4" and "video/quicktime")
+				if (!(file.type === 'video/mp4' || file.type === 'video/quicktime')) {
+					alert('Only MP4 and MOV videos are allowed');
+					return;
+				}
+				const maxSize = 200 * 1024 * 1024; // 200MB
+				if (file.size > maxSize) {
+					alert('Video file size should be less than 200MB');
+					return;
+				}
+				setNewQuestMediaFile(file);
+				setNewQuestMediaPreview(URL.createObjectURL(file));
+				setNewQuestMediaType('video');
+			} else {
+				alert('Unsupported file type.');
 			}
-			if (file.size > maxSize) {
-				alert('File size should be less than 5MB');
-				return;
-			}
-			setNewQuestImageFile(file);
-			setNewQuestImagePreview(URL.createObjectURL(file));
 		}
 	};
 
-	const handleEditQuestImageChange = (e) => {
+	const handleEditQuestMediaChange = (e) => {
 		const file = e.target.files[0];
 		if (file) {
-			const validTypes = ['image/jpeg', 'image/png'];
-			const maxSize = 5 * 1024 * 1024; // 5 MB
-			if (!validTypes.includes(file.type)) {
-				alert('Only JPEG and PNG files are allowed');
-				return;
+			if (file.type.startsWith('image/')) {
+				const maxSize = 5 * 1024 * 1024; // 5MB
+				if (file.size > maxSize) {
+					alert('Image file size should be less than 5MB');
+					return;
+				}
+				setEditQuestMediaFile(file);
+				setEditQuestMediaPreview(URL.createObjectURL(file));
+				setEditQuestMediaType('image');
+				setShouldDeleteExistingMedia(true);
+			} else if (file.type.startsWith('video/')) {
+				if (!(file.type === 'video/mp4' || file.type === 'video/quicktime')) {
+					alert('Only MP4 and MOV videos are allowed');
+					return;
+				}
+				const maxSize = 200 * 1024 * 1024; // 200MB
+				if (file.size > maxSize) {
+					alert('Video file size should be less than 200MB');
+					return;
+				}
+				setEditQuestMediaFile(file);
+				setEditQuestMediaPreview(URL.createObjectURL(file));
+				setEditQuestMediaType('video');
+				setShouldDeleteExistingMedia(true);
+			} else {
+				alert('Unsupported file type.');
 			}
-			if (file.size > maxSize) {
-				alert('File size should be less than 5MB');
-				return;
-			}
-			setEditQuestImageFile(file);
-			setEditQuestImagePreview(URL.createObjectURL(file));
-			setShouldDeleteExistingImage(true);
 		}
 	};
 
@@ -163,15 +195,25 @@ function QuestManagement({ db, storage }) {
 		setEditQuestHint(quest.hint || '');
 		setEditQuestText(quest.text || '');
 		setEditQuestAnswer(quest.answer || '');
-		// Reset image states for editing
-		setEditQuestImageFile(null);
-		setEditQuestImagePreview(null);
-		setShouldDeleteExistingImage(false);
+		// Pre-populate media state from existing quest data.
+		if (quest.imageUrl) {
+			setEditQuestMediaType('image');
+			setEditQuestMediaPreview(quest.imageUrl);
+		} else if (quest.videoUrl) {
+			setEditQuestMediaType('video');
+			setEditQuestMediaPreview(quest.videoUrl);
+		} else {
+			setEditQuestMediaType(null);
+			setEditQuestMediaPreview(null);
+		}
+		setEditQuestMediaFile(null);
+		setShouldDeleteExistingMedia(false);
 		setEditModalOpen(true);
 	};
 
 	// ── CREATE QUEST ──
 	const createQuest = async () => {
+		setIsUploading(true);
 		const newSeq = newQuestSequence
 			? parseInt(newQuestSequence, 10)
 			: quests.length + 1;
@@ -188,22 +230,41 @@ function QuestManagement({ db, storage }) {
 		const newQuestRef = doc(questsRef);
 		let imageUrl = '';
 		let imagePath = '';
-		if (newQuestImageFile && storage) {
-			try {
-				const ext = newQuestImageFile.name.split('.').pop();
-				imagePath = `quests/${newQuestRef.id}.${ext}`;
-				const imgRef = storageRef(storage, imagePath);
-				await uploadBytes(imgRef, newQuestImageFile);
-				imageUrl = await getDownloadURL(imgRef);
-				if (!imageUrl) {
-					throw new Error('Download URL is empty');
+		let videoUrl = '';
+		let videoPath = '';
+		if (newQuestMediaFile && storage) {
+			if (newQuestMediaType === 'image') {
+				try {
+					const ext = newQuestMediaFile.name.split('.').pop();
+					imagePath = `quests/${newQuestRef.id}.${ext}`;
+					const imgRef = storageRef(storage, imagePath);
+					await uploadBytes(imgRef, newQuestMediaFile);
+					imageUrl = await getDownloadURL(imgRef);
+					if (!imageUrl) throw new Error('Download URL is empty');
+				} catch (error) {
+					console.error('Error uploading image:', error);
+					setUploadError(
+						'Saving image in Firebase Storage failed. Please try again.'
+					);
+					setIsUploading(false);
+					return;
 				}
-			} catch (error) {
-				console.error('Error uploading file:', error);
-				setUploadError(
-					'Saving file in Firebase Storage failed. Please try again.'
-				);
-				return;
+			} else if (newQuestMediaType === 'video') {
+				try {
+					const ext = newQuestMediaFile.name.split('.').pop();
+					videoPath = `quests/${newQuestRef.id}.${ext}`;
+					const vidRef = storageRef(storage, videoPath);
+					await uploadBytes(vidRef, newQuestMediaFile);
+					videoUrl = await getDownloadURL(vidRef);
+					if (!videoUrl) throw new Error('Download URL is empty');
+				} catch (error) {
+					console.error('Error uploading video:', error);
+					setUploadError(
+						'Saving video in Firebase Storage failed. Please try again.'
+					);
+					setIsUploading(false);
+					return;
+				}
 			}
 		}
 
@@ -213,8 +274,10 @@ function QuestManagement({ db, storage }) {
 			hint: newQuestHint,
 			text: newQuestText,
 			answer: newQuestAnswer,
-			imageUrl,
-			imagePath,
+			imageUrl: newQuestMediaType === 'image' ? imageUrl : '',
+			imagePath: newQuestMediaType === 'image' ? imagePath : '',
+			videoUrl: newQuestMediaType === 'video' ? videoUrl : '',
+			videoPath: newQuestMediaType === 'video' ? videoPath : '',
 		});
 
 		await batch.commit();
@@ -224,10 +287,12 @@ function QuestManagement({ db, storage }) {
 		setNewQuestHint('');
 		setNewQuestText('');
 		setNewQuestAnswer('');
-		setNewQuestImageFile(null);
-		setNewQuestImagePreview(null);
+		setNewQuestMediaFile(null);
+		setNewQuestMediaPreview(null);
+		setNewQuestMediaType(null);
 		setUploadError(null);
 		setCreateModalOpen(false);
+		setIsUploading(false);
 	};
 
 	// ── DELETE QUEST ──
@@ -238,12 +303,21 @@ function QuestManagement({ db, storage }) {
 		if (!questToDelete) return;
 		const deletedSeq = questToDelete.sequence;
 
+		// Delete associated media if present.
 		if (questToDelete.imagePath && storage) {
 			const imgRef = storageRef(storage, questToDelete.imagePath);
 			try {
 				await deleteObject(imgRef);
 			} catch (error) {
 				console.error('Error deleting image:', error);
+			}
+		}
+		if (questToDelete.videoPath && storage) {
+			const vidRef = storageRef(storage, questToDelete.videoPath);
+			try {
+				await deleteObject(vidRef);
+			} catch (error) {
+				console.error('Error deleting video:', error);
 			}
 		}
 
@@ -265,6 +339,7 @@ function QuestManagement({ db, storage }) {
 
 	// ── UPDATE QUEST ──
 	const updateQuest = async () => {
+		setIsUploading(true);
 		if (!selectedQuestForEdit) return;
 		const newSeq = editQuestSequence
 			? parseInt(editQuestSequence, 10)
@@ -273,43 +348,94 @@ function QuestManagement({ db, storage }) {
 
 		let updatedImageUrl = selectedQuestForEdit.imageUrl || '';
 		let updatedImagePath = selectedQuestForEdit.imagePath || '';
-		if (editQuestImageFile && storage) {
-			try {
-				if (selectedQuestForEdit.imagePath && shouldDeleteExistingImage) {
+		let updatedVideoUrl = selectedQuestForEdit.videoUrl || '';
+		let updatedVideoPath = selectedQuestForEdit.videoPath || '';
+
+		if (editQuestMediaFile && storage) {
+			if (editQuestMediaType === 'image') {
+				try {
+					if (selectedQuestForEdit.imagePath && shouldDeleteExistingMedia) {
+						const oldImgRef = storageRef(
+							storage,
+							selectedQuestForEdit.imagePath
+						);
+						await deleteObject(oldImgRef);
+					}
+					const ext = editQuestMediaFile.name.split('.').pop();
+					updatedImagePath = `quests/${selectedQuestForEdit.id}.${ext}`;
+					const imgRef = storageRef(storage, updatedImagePath);
+					await uploadBytes(imgRef, editQuestMediaFile);
+					updatedImageUrl = await getDownloadURL(imgRef);
+					if (!updatedImageUrl) throw new Error('Download URL is empty');
+					// Clear video fields if a new image is uploaded.
+					updatedVideoUrl = '';
+					updatedVideoPath = '';
+				} catch (error) {
+					console.error('Error uploading new image:', error);
+					setUploadError(
+						'Saving image in Firebase Storage failed. Please try again.'
+					);
+					setIsUploading(false);
+					return;
+				}
+			} else if (editQuestMediaType === 'video') {
+				try {
+					if (selectedQuestForEdit.videoPath && shouldDeleteExistingMedia) {
+						const oldVidRef = storageRef(
+							storage,
+							selectedQuestForEdit.videoPath
+						);
+						await deleteObject(oldVidRef);
+					}
+					const ext = editQuestMediaFile.name.split('.').pop();
+					updatedVideoPath = `quests/${selectedQuestForEdit.id}.${ext}`;
+					const vidRef = storageRef(storage, updatedVideoPath);
+					await uploadBytes(vidRef, editQuestMediaFile);
+					updatedVideoUrl = await getDownloadURL(vidRef);
+					if (!updatedVideoUrl) throw new Error('Download URL is empty');
+					// Clear image fields if a new video is uploaded.
+					updatedImageUrl = '';
+					updatedImagePath = '';
+				} catch (error) {
+					console.error('Error uploading new video:', error);
+					setUploadError(
+						'Saving video in Firebase Storage failed. Please try again.'
+					);
+					setIsUploading(false);
+					return;
+				}
+			}
+		} else if (shouldDeleteExistingMedia) {
+			// Deletion requested without replacement.
+			if (selectedQuestForEdit.imagePath && storage) {
+				try {
 					const oldImgRef = storageRef(storage, selectedQuestForEdit.imagePath);
 					await deleteObject(oldImgRef);
+					updatedImageUrl = '';
+					updatedImagePath = '';
+				} catch (error) {
+					console.error('Error deleting image:', error);
+					setUploadError(
+						'Deleting the existing image in Firebase Storage failed.'
+					);
+					setIsUploading(false);
+					return;
 				}
-				const ext = editQuestImageFile.name.split('.').pop();
-				updatedImagePath = `quests/${selectedQuestForEdit.id}.${ext}`;
-				const newImgRef = storageRef(storage, updatedImagePath);
-				await uploadBytes(newImgRef, editQuestImageFile);
-				updatedImageUrl = await getDownloadURL(newImgRef);
-				if (!updatedImageUrl) {
-					throw new Error('Download URL is empty');
-				}
-			} catch (error) {
-				console.error('Error uploading new image:', error);
-				setUploadError(
-					'Saving file in Firebase Storage failed. Please try again.'
-				);
-				return;
 			}
-		} else if (
-			shouldDeleteExistingImage &&
-			selectedQuestForEdit.imagePath &&
-			storage
-		) {
-			try {
-				const oldImgRef = storageRef(storage, selectedQuestForEdit.imagePath);
-				await deleteObject(oldImgRef);
-				updatedImageUrl = '';
-				updatedImagePath = '';
-			} catch (error) {
-				console.error('Error deleting image:', error);
-				setUploadError(
-					'Deleting the existing file in Firebase Storage failed.'
-				);
-				return;
+			if (selectedQuestForEdit.videoPath && storage) {
+				try {
+					const oldVidRef = storageRef(storage, selectedQuestForEdit.videoPath);
+					await deleteObject(oldVidRef);
+					updatedVideoUrl = '';
+					updatedVideoPath = '';
+				} catch (error) {
+					console.error('Error deleting video:', error);
+					setUploadError(
+						'Deleting the existing video in Firebase Storage failed.'
+					);
+					setIsUploading(false);
+					return;
+				}
 			}
 		}
 
@@ -329,6 +455,8 @@ function QuestManagement({ db, storage }) {
 			sequence: clampedSeq,
 			imageUrl: updatedImageUrl,
 			imagePath: updatedImagePath,
+			videoUrl: updatedVideoUrl,
+			videoPath: updatedVideoPath,
 		};
 
 		filteredQuests.splice(clampedSeq - 1, 0, updatedQuest);
@@ -349,6 +477,8 @@ function QuestManagement({ db, storage }) {
 				answer: quest.answer,
 				imageUrl: quest.imageUrl || '',
 				imagePath: quest.imagePath || '',
+				videoUrl: quest.videoUrl || '',
+				videoPath: quest.videoPath || '',
 			});
 		});
 		await batch.commit();
@@ -359,11 +489,13 @@ function QuestManagement({ db, storage }) {
 		setEditQuestHint('');
 		setEditQuestText('');
 		setEditQuestAnswer('');
-		setEditQuestImageFile(null);
-		setEditQuestImagePreview(null);
-		setShouldDeleteExistingImage(false);
+		setEditQuestMediaFile(null);
+		setEditQuestMediaPreview(null);
+		setEditQuestMediaType(null);
+		setShouldDeleteExistingMedia(false);
 		setUploadError(null);
 		setEditModalOpen(false);
+		setIsUploading(false);
 	};
 
 	const openViewModal = (quest) => {
@@ -563,6 +695,7 @@ function QuestManagement({ db, storage }) {
 					</div>
 				</div>
 			</div>
+			{/* Create Modal */}
 			{isCreateModalOpen && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg">
@@ -605,21 +738,22 @@ function QuestManagement({ db, storage }) {
 						<div className="mb-4">
 							<input
 								type="file"
-								accept="image/png, image/jpeg"
-								onChange={handleNewQuestImageChange}
+								accept="image/png, image/jpeg, video/mp4, video/quicktime"
+								onChange={handleNewQuestMediaChange}
 							/>
-							{newQuestImagePreview && (
+							{newQuestMediaPreview && newQuestMediaType === 'image' && (
 								<div>
 									<img
-										src={newQuestImagePreview}
+										src={newQuestMediaPreview}
 										alt="Preview"
 										style={{ maxWidth: '200px' }}
 										className="mt-2"
 									/>
 									<button
 										onClick={() => {
-											setNewQuestImageFile(null);
-											setNewQuestImagePreview(null);
+											setNewQuestMediaFile(null);
+											setNewQuestMediaPreview(null);
+											setNewQuestMediaType(null);
 										}}
 										className="mt-2 px-2 py-1 bg-red-300 rounded"
 									>
@@ -627,9 +761,36 @@ function QuestManagement({ db, storage }) {
 									</button>
 								</div>
 							)}
+							{newQuestMediaPreview && newQuestMediaType === 'video' && (
+								<div>
+									<video
+										src={newQuestMediaPreview}
+										style={{
+											maxWidth: '200px',
+											maxHeight: '200px',
+											objectFit: 'contain',
+										}}
+										className="mt-2"
+										controls={false}
+									/>
+									<button
+										onClick={() => {
+											setNewQuestMediaFile(null);
+											setNewQuestMediaPreview(null);
+											setNewQuestMediaType(null);
+										}}
+										className="mt-2 px-2 py-1 bg-red-300 rounded"
+									>
+										Remove Video
+									</button>
+								</div>
+							)}
 						</div>
 						{uploadError && (
 							<div className="mt-2 text-red-600">{uploadError}</div>
+						)}
+						{isUploading && (
+							<div className="mt-2 text-blue-600">Uploading...</div>
 						)}
 						<div className="flex justify-end space-x-3">
 							<button
@@ -648,6 +809,7 @@ function QuestManagement({ db, storage }) {
 					</div>
 				</div>
 			)}
+			{/* Edit Modal */}
 			{isEditModalOpen && selectedQuestForEdit && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -690,51 +852,111 @@ function QuestManagement({ db, storage }) {
 						<div className="mb-4">
 							<input
 								type="file"
-								accept="image/png, image/jpeg"
-								onChange={handleEditQuestImageChange}
+								accept="image/png, image/jpeg, video/mp4, video/quicktime"
+								onChange={handleEditQuestMediaChange}
 							/>
-							{editQuestImagePreview ? (
+							{editQuestMediaPreview ? (
+								<div>
+									{editQuestMediaType === 'image' ? (
+										<>
+											<img
+												src={editQuestMediaPreview}
+												alt="Preview"
+												style={{ maxWidth: '200px' }}
+												className="mt-2"
+											/>
+											<button
+												onClick={() => {
+													setEditQuestMediaFile(null);
+													setEditQuestMediaPreview(null);
+													setEditQuestMediaType(null);
+													setShouldDeleteExistingMedia(true);
+												}}
+												className="mt-2 px-2 py-1 bg-red-300 rounded"
+											>
+												Remove Image
+											</button>
+										</>
+									) : (
+										<>
+											<video
+												src={editQuestMediaPreview}
+												style={{
+													maxWidth: '200px',
+													maxHeight: '200px',
+													objectFit: 'contain',
+												}}
+												className="mt-2"
+												controls={false}
+											/>
+											<button
+												onClick={() => {
+													setEditQuestMediaFile(null);
+													setEditQuestMediaPreview(null);
+													setEditQuestMediaType(null);
+													setShouldDeleteExistingMedia(true);
+												}}
+												className="mt-2 px-2 py-1 bg-red-300 rounded"
+											>
+												Remove Video
+											</button>
+										</>
+									)}
+								</div>
+							) : selectedQuestForEdit.imageUrl &&
+							  !editQuestMediaPreview &&
+							  editQuestMediaType === null ? (
 								<div>
 									<img
-										src={editQuestImagePreview}
-										alt="Preview"
+										src={selectedQuestForEdit.imageUrl}
+										alt="Current"
 										style={{ maxWidth: '200px' }}
 										className="mt-2"
 									/>
 									<button
 										onClick={() => {
-											setEditQuestImageFile(null);
-											setEditQuestImagePreview(null);
-											setShouldDeleteExistingImage(true);
+											setShouldDeleteExistingMedia(true);
+											setEditQuestMediaPreview(null);
+											setEditQuestMediaType(null);
 										}}
 										className="mt-2 px-2 py-1 bg-red-300 rounded"
 									>
 										Remove Image
 									</button>
 								</div>
-							) : (
-								selectedQuestForEdit.imageUrl && (
-									<div>
-										<img
-											src={selectedQuestForEdit.imageUrl}
-											alt="Current"
-											style={{ maxWidth: '200px' }}
-											className="mt-2"
-										/>
-										<button
-											onClick={() => {
-												setShouldDeleteExistingImage(true);
-											}}
-											className="mt-2 px-2 py-1 bg-red-300 rounded"
-										>
-											Remove Image
-										</button>
-									</div>
-								)
-							)}
+							) : selectedQuestForEdit.videoUrl &&
+							  !editQuestMediaPreview &&
+							  editQuestMediaType === null ? (
+								<div>
+									<video
+										src={selectedQuestForEdit.videoUrl}
+										alt="Current"
+										style={{
+											maxWidth: '200px',
+											maxHeight: '200px',
+											objectFit: 'contain',
+										}}
+										className="mt-2"
+										controls
+									/>
+									<button
+										onClick={() => {
+											setShouldDeleteExistingMedia(true);
+											setEditQuestMediaPreview(null);
+											setEditQuestMediaType(null);
+										}}
+										className="mt-2 px-2 py-1 bg-red-300 rounded"
+									>
+										Remove Video
+									</button>
+								</div>
+							) : null}
 						</div>
 						{uploadError && (
 							<div className="mt-2 text-red-600">{uploadError}</div>
+						)}
+						{isUploading && (
+							<div className="mt-2 text-blue-600">Uploading...</div>
 						)}
 						<div className="flex justify-end space-x-3">
 							<button
@@ -753,6 +975,7 @@ function QuestManagement({ db, storage }) {
 					</div>
 				</div>
 			)}
+			{/* Delete Modal */}
 			{isDeleteModalOpen && selectedQuestForDelete && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -775,6 +998,7 @@ function QuestManagement({ db, storage }) {
 					</div>
 				</div>
 			)}
+			{/* View Modal */}
 			{isViewModalOpen && selectedQuestForView && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -800,6 +1024,20 @@ function QuestManagement({ db, storage }) {
 									src={selectedQuestForView.imageUrl}
 									alt="Quest"
 									style={{ maxWidth: '200px' }}
+								/>
+							</div>
+						)}
+						{selectedQuestForView.videoUrl && (
+							<div className="mt-2">
+								<video
+									src={selectedQuestForView.videoUrl}
+									alt="Quest Video"
+									style={{
+										maxWidth: '200px',
+										maxHeight: '200px',
+										objectFit: 'contain',
+									}}
+									controls
 								/>
 							</div>
 						)}
