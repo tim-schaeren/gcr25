@@ -15,6 +15,7 @@ function ItemsManagement({ db }) {
 	const [newItemEffect, setNewItemEffect] = useState('');
 	const [newItemPrice, setNewItemPrice] = useState('');
 	const [newItemType, setNewItemType] = useState('');
+	const [newItemDuration, setNewItemDuration] = useState('');
 	const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
 	const [selectedItem, setSelectedItem] = useState(null);
@@ -39,7 +40,8 @@ function ItemsManagement({ db }) {
 			!newItemDescription.trim() ||
 			!newItemEffect.trim() ||
 			!newItemPrice ||
-			!newItemType.trim()
+			!newItemType.trim() ||
+			!newItemDuration.trim()
 		)
 			return;
 		const itemsRef = collection(db, 'items');
@@ -49,12 +51,14 @@ function ItemsManagement({ db }) {
 			effect: newItemEffect,
 			price: parseFloat(newItemPrice),
 			type: newItemType,
+			duration: parseFloat(newItemDuration),
 		});
 		setNewItemName('');
 		setNewItemDescription('');
 		setNewItemEffect('');
 		setNewItemPrice('');
 		setNewItemType('');
+		setNewItemDuration('');
 		setCreateModalOpen(false);
 	};
 
@@ -139,6 +143,9 @@ function ItemsManagement({ db }) {
 									<th className="border border-gray-300 p-4 text-black">
 										Type
 									</th>
+									<th className="border border-gray-300 p-4 text-black">
+										Duration
+									</th>
 									<th className="border border-gray-300 p-4 text-black"></th>
 								</tr>
 							</thead>
@@ -162,6 +169,9 @@ function ItemsManagement({ db }) {
 										</td>
 										<td className="border border-gray-300 p-4 text-black">
 											{item.type}
+										</td>
+										<td className="border border-gray-300 p-4 text-black">
+											{item.duration}
 										</td>
 										<td className="border border-gray-300 p-4 text-black font-semibold">
 											<button
@@ -226,6 +236,13 @@ function ItemsManagement({ db }) {
 							placeholder="Type"
 							value={newItemType}
 							onChange={(e) => setNewItemType(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						<input
+							type="number"
+							placeholder="Duration"
+							value={newItemDuration}
+							onChange={(e) => setNewItemDuration(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
 						<div className="flex justify-end space-x-3">
