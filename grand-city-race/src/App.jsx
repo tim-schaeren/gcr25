@@ -3,6 +3,7 @@ import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import Dashboard from './components/Dashboard';
 import QRScanner from './components/QRScanner';
 import Shop from './components/Shop';
@@ -27,6 +28,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 function App() {
 	const [user, setUser] = useState(null);
@@ -141,7 +143,7 @@ function App() {
 					path="/admin/quests"
 					element={
 						user && isAdmin ? (
-							<QuestManagement db={db} />
+							<QuestManagement db={db} storage={storage} />
 						) : (
 							<Navigate to="/login" />
 						)

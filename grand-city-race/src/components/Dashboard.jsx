@@ -234,6 +234,14 @@ function Dashboard({ user, db }) {
 					{quest ? (
 						<>
 							<h3 className="text-xl font-semibold">📜 Current Quest:</h3>
+							{/* Conditionally show the quest image if it exists */}
+							{quest.imageUrl && (
+								<img
+									src={quest.imageUrl}
+									alt="Quest"
+									className="w-full rounded-md mb-4"
+								/>
+							)}
 							<p className="text-gray-300 mt-2">{quest.text}</p>
 							<button
 								onClick={() => navigate('/solver')}

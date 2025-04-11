@@ -9,8 +9,6 @@ import {
 	writeBatch,
 } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
-
-// dnd-kit imports
 import {
 	DndContext,
 	closestCenter,
@@ -25,15 +23,18 @@ import {
 	useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-// Additional imports for QR code generation and ZIP file creation.
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// ── SortableRow Component ──
-// Accepts an onClick prop so that clicking a row (except its action buttons)
-// will open the view details modal.
+// Import Firebase Storage functions (aliased as storageRef to avoid confusion with Firestore's doc ref)
+import {
+	ref as storageRef,
+	uploadBytes,
+	getDownloadURL,
+	deleteObject,
+} from 'firebase/storage';
+
 function SortableRow({ id, children, onClick }) {
 	const {
 		attributes,
@@ -43,7 +44,6 @@ function SortableRow({ id, children, onClick }) {
 		transition,
 		isDragging,
 	} = useSortable({ id });
-
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
@@ -51,7 +51,6 @@ function SortableRow({ id, children, onClick }) {
 		opacity: isDragging ? 0.8 : 1,
 		cursor: 'pointer',
 	};
-
 	return (
 		<tr
 			ref={setNodeRef}
@@ -65,21 +64,25 @@ function SortableRow({ id, children, onClick }) {
 	);
 }
 
-function QuestManagement({ db }) {
-	// State for quests and create modal.
+function QuestManagement({ db, storage }) {
+	// Quest data state
 	const [quests, setQuests] = useState([]);
+	// Create modal state
 	const [newQuestName, setNewQuestName] = useState('');
 	const [newQuestSequence, setNewQuestSequence] = useState('');
 	const [newQuestHint, setNewQuestHint] = useState('');
 	const [newQuestText, setNewQuestText] = useState('');
 	const [newQuestAnswer, setNewQuestAnswer] = useState('');
+	// New image state for creation
+	const [newQuestImageFile, setNewQuestImageFile] = useState(null);
+	const [newQuestImagePreview, setNewQuestImagePreview] = useState(null);
 	const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 
-	// State for delete modal.
+	// Delete modal state.
 	const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
 	const [selectedQuestForDelete, setSelectedQuestForDelete] = useState(null);
 
-	// State for edit modal.
+	// Edit modal state.
 	const [isEditModalOpen, setEditModalOpen] = useState(false);
 	const [selectedQuestForEdit, setSelectedQuestForEdit] = useState(null);
 	const [editQuestName, setEditQuestName] = useState('');
@@ -87,10 +90,19 @@ function QuestManagement({ db }) {
 	const [editQuestHint, setEditQuestHint] = useState('');
 	const [editQuestText, setEditQuestText] = useState('');
 	const [editQuestAnswer, setEditQuestAnswer] = useState('');
+	// Image state for editing:
+	const [editQuestImageFile, setEditQuestImageFile] = useState(null);
+	const [editQuestImagePreview, setEditQuestImagePreview] = useState(null);
+	// Flag to indicate if user wants to remove any currently stored image (even without selecting a new one)
+	const [shouldDeleteExistingImage, setShouldDeleteExistingImage] =
+		useState(false);
 
-	// State for view details modal.
+	// View Details modal state.
 	const [isViewModalOpen, setViewModalOpen] = useState(false);
 	const [selectedQuestForView, setSelectedQuestForView] = useState(null);
+
+	// Upload error state
+	const [uploadError, setUploadError] = useState(null);
 
 	// ── Firestore Listener ──
 	useEffect(() => {
@@ -105,22 +117,67 @@ function QuestManagement({ db }) {
 		return () => unsubscribe();
 	}, [db]);
 
+	// ── File Input Handlers ──
+	const handleNewQuestImageChange = (e) => {
+		const file = e.target.files[0];
+		if (file) {
+			const validTypes = ['image/jpeg', 'image/png'];
+			const maxSize = 5 * 1024 * 1024; // 5 MB
+			if (!validTypes.includes(file.type)) {
+				alert('Only JPEG and PNG files are allowed');
+				return;
+			}
+			if (file.size > maxSize) {
+				alert('File size should be less than 5MB');
+				return;
+			}
+			setNewQuestImageFile(file);
+			setNewQuestImagePreview(URL.createObjectURL(file));
+		}
+	};
+
+	const handleEditQuestImageChange = (e) => {
+		const file = e.target.files[0];
+		if (file) {
+			const validTypes = ['image/jpeg', 'image/png'];
+			const maxSize = 5 * 1024 * 1024; // 5 MB
+			if (!validTypes.includes(file.type)) {
+				alert('Only JPEG and PNG files are allowed');
+				return;
+			}
+			if (file.size > maxSize) {
+				alert('File size should be less than 5MB');
+				return;
+			}
+			setEditQuestImageFile(file);
+			setEditQuestImagePreview(URL.createObjectURL(file));
+			setShouldDeleteExistingImage(true);
+		}
+	};
+
+	// ── Function to Open Edit Modal ──
+	const openEditModal = (quest) => {
+		setSelectedQuestForEdit(quest);
+		setEditQuestName(quest.name || '');
+		setEditQuestSequence(quest.sequence ? quest.sequence.toString() : '');
+		setEditQuestHint(quest.hint || '');
+		setEditQuestText(quest.text || '');
+		setEditQuestAnswer(quest.answer || '');
+		// Reset image states for editing
+		setEditQuestImageFile(null);
+		setEditQuestImagePreview(null);
+		setShouldDeleteExistingImage(false);
+		setEditModalOpen(true);
+	};
+
 	// ── CREATE QUEST ──
 	const createQuest = async () => {
-		if (
-			!newQuestName.trim() ||
-			!newQuestSequence ||
-			!newQuestHint.trim() ||
-			!newQuestText.trim() ||
-			!newQuestAnswer.trim()
-		)
-			return;
-
-		const newSeq = parseInt(newQuestSequence, 10);
+		const newSeq = newQuestSequence
+			? parseInt(newQuestSequence, 10)
+			: quests.length + 1;
 		const batch = writeBatch(db);
 		const questsRef = collection(db, 'quests');
 
-		// Increment sequence of any quest whose sequence is >= newSeq.
 		quests.forEach((quest) => {
 			if (quest.sequence >= newSeq) {
 				const questDocRef = doc(db, 'quests', quest.id);
@@ -128,24 +185,48 @@ function QuestManagement({ db }) {
 			}
 		});
 
-		// Create the new quest.
-		const newQuestRef = doc(questsRef); // auto-generated ID
+		const newQuestRef = doc(questsRef);
+		let imageUrl = '';
+		let imagePath = '';
+		if (newQuestImageFile && storage) {
+			try {
+				const ext = newQuestImageFile.name.split('.').pop();
+				imagePath = `quests/${newQuestRef.id}.${ext}`;
+				const imgRef = storageRef(storage, imagePath);
+				await uploadBytes(imgRef, newQuestImageFile);
+				imageUrl = await getDownloadURL(imgRef);
+				if (!imageUrl) {
+					throw new Error('Download URL is empty');
+				}
+			} catch (error) {
+				console.error('Error uploading file:', error);
+				setUploadError(
+					'Saving file in Firebase Storage failed. Please try again.'
+				);
+				return;
+			}
+		}
+
 		batch.set(newQuestRef, {
 			name: newQuestName,
 			sequence: newSeq,
 			hint: newQuestHint,
 			text: newQuestText,
 			answer: newQuestAnswer,
+			imageUrl,
+			imagePath,
 		});
 
 		await batch.commit();
 
-		// Clear inputs and close modal.
 		setNewQuestName('');
 		setNewQuestSequence('');
 		setNewQuestHint('');
 		setNewQuestText('');
 		setNewQuestAnswer('');
+		setNewQuestImageFile(null);
+		setNewQuestImagePreview(null);
+		setUploadError(null);
 		setCreateModalOpen(false);
 	};
 
@@ -156,6 +237,15 @@ function QuestManagement({ db }) {
 		const questToDelete = quests.find((q) => q.id === selectedQuestForDelete);
 		if (!questToDelete) return;
 		const deletedSeq = questToDelete.sequence;
+
+		if (questToDelete.imagePath && storage) {
+			const imgRef = storageRef(storage, questToDelete.imagePath);
+			try {
+				await deleteObject(imgRef);
+			} catch (error) {
+				console.error('Error deleting image:', error);
+			}
+		}
 
 		const batch = writeBatch(db);
 		const questDocRef = doc(db, 'quests', selectedQuestForDelete);
@@ -173,23 +263,56 @@ function QuestManagement({ db }) {
 		setSelectedQuestForDelete(null);
 	};
 
-	// ── EDIT QUEST ──
-	const openEditModal = (quest) => {
-		setSelectedQuestForEdit(quest);
-		setEditQuestName(quest.name || '');
-		setEditQuestSequence(quest.sequence.toString());
-		setEditQuestHint(quest.hint || '');
-		setEditQuestText(quest.text || '');
-		setEditQuestAnswer(quest.answer || '');
-		setEditModalOpen(true);
-	};
-
+	// ── UPDATE QUEST ──
 	const updateQuest = async () => {
 		if (!selectedQuestForEdit) return;
-		const newSeq = parseInt(editQuestSequence, 10);
+		const newSeq = editQuestSequence
+			? parseInt(editQuestSequence, 10)
+			: selectedQuestForEdit.sequence;
 		if (isNaN(newSeq)) return;
 
-		// Create an ordered list without the quest being edited.
+		let updatedImageUrl = selectedQuestForEdit.imageUrl || '';
+		let updatedImagePath = selectedQuestForEdit.imagePath || '';
+		if (editQuestImageFile && storage) {
+			try {
+				if (selectedQuestForEdit.imagePath && shouldDeleteExistingImage) {
+					const oldImgRef = storageRef(storage, selectedQuestForEdit.imagePath);
+					await deleteObject(oldImgRef);
+				}
+				const ext = editQuestImageFile.name.split('.').pop();
+				updatedImagePath = `quests/${selectedQuestForEdit.id}.${ext}`;
+				const newImgRef = storageRef(storage, updatedImagePath);
+				await uploadBytes(newImgRef, editQuestImageFile);
+				updatedImageUrl = await getDownloadURL(newImgRef);
+				if (!updatedImageUrl) {
+					throw new Error('Download URL is empty');
+				}
+			} catch (error) {
+				console.error('Error uploading new image:', error);
+				setUploadError(
+					'Saving file in Firebase Storage failed. Please try again.'
+				);
+				return;
+			}
+		} else if (
+			shouldDeleteExistingImage &&
+			selectedQuestForEdit.imagePath &&
+			storage
+		) {
+			try {
+				const oldImgRef = storageRef(storage, selectedQuestForEdit.imagePath);
+				await deleteObject(oldImgRef);
+				updatedImageUrl = '';
+				updatedImagePath = '';
+			} catch (error) {
+				console.error('Error deleting image:', error);
+				setUploadError(
+					'Deleting the existing file in Firebase Storage failed.'
+				);
+				return;
+			}
+		}
+
 		const sortedQuests = quests.slice().sort((a, b) => a.sequence - b.sequence);
 		const filteredQuests = sortedQuests.filter(
 			(q) => q.id !== selectedQuestForEdit.id
@@ -197,20 +320,19 @@ function QuestManagement({ db }) {
 		const effectiveLength = filteredQuests.length + 1;
 		const clampedSeq = Math.max(1, Math.min(newSeq, effectiveLength));
 
-		// Build the updated quest object.
 		const updatedQuest = {
 			...selectedQuestForEdit,
 			name: editQuestName,
 			hint: editQuestHint,
 			text: editQuestText,
 			answer: editQuestAnswer,
-			sequence: clampedSeq, // temporary value
+			sequence: clampedSeq,
+			imageUrl: updatedImageUrl,
+			imagePath: updatedImagePath,
 		};
 
-		// Insert the updated quest at the desired position.
 		filteredQuests.splice(clampedSeq - 1, 0, updatedQuest);
 
-		// Recalculate sequences for all quests.
 		const newOrderedQuests = filteredQuests.map((quest, index) => ({
 			...quest,
 			sequence: index + 1,
@@ -225,28 +347,30 @@ function QuestManagement({ db }) {
 				hint: quest.hint,
 				text: quest.text,
 				answer: quest.answer,
+				imageUrl: quest.imageUrl || '',
+				imagePath: quest.imagePath || '',
 			});
 		});
 		await batch.commit();
 
-		// Clear edit state.
 		setSelectedQuestForEdit(null);
 		setEditQuestName('');
 		setEditQuestSequence('');
 		setEditQuestHint('');
 		setEditQuestText('');
 		setEditQuestAnswer('');
+		setEditQuestImageFile(null);
+		setEditQuestImagePreview(null);
+		setShouldDeleteExistingImage(false);
+		setUploadError(null);
 		setEditModalOpen(false);
 	};
 
-	// ── VIEW DETAILS MODAL ──
 	const openViewModal = (quest) => {
 		setSelectedQuestForView(quest);
 		setViewModalOpen(true);
 	};
 
-	// ── QR CODE FUNCTIONS ──
-	// Generate and download a QR code image for a single quest ID.
 	const downloadQRCode = async (questId) => {
 		try {
 			const url = await QRCode.toDataURL(questId);
@@ -261,11 +385,9 @@ function QuestManagement({ db }) {
 		}
 	};
 
-	// Generate QR codes for all quests, package them into a ZIP file, and download.
 	const generateAllQRCodes = async () => {
 		const zip = new JSZip();
 		const folder = zip.folder('qrcodes');
-		// Use the sorted quests array.
 		const promises = sortedQuests.map(async (quest) => {
 			const url = await QRCode.toDataURL(quest.id);
 			const base64Data = url.split(',')[1];
@@ -277,20 +399,16 @@ function QuestManagement({ db }) {
 		});
 	};
 
-	// ── dnd-kit Setup ──
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
 	);
-
 	const handleDragEnd = async (event) => {
 		const { active, over } = event;
 		if (!over || active.id === over.id) return;
-
 		const sortedQuests = quests.slice().sort((a, b) => a.sequence - b.sequence);
 		const oldIndex = sortedQuests.findIndex((quest) => quest.id === active.id);
 		const newIndex = sortedQuests.findIndex((quest) => quest.id === over.id);
 		const newSortedQuests = arrayMove(sortedQuests, oldIndex, newIndex);
-
 		const batch = writeBatch(db);
 		newSortedQuests.forEach((quest, index) => {
 			const newSequence = index + 1;
@@ -301,8 +419,6 @@ function QuestManagement({ db }) {
 		});
 		await batch.commit();
 	};
-
-	// ── Sorted Quests for Display ──
 	const sortedQuests = quests.slice().sort((a, b) => a.sequence - b.sequence);
 
 	return (
@@ -313,10 +429,7 @@ function QuestManagement({ db }) {
 					🚫 Admin Dashboard is only accessible on a larger screen.
 				</p>
 			</div>
-
-			{/* Dashboard for larger screens */}
 			<div className="hidden sm:flex w-full max-w-screen mx-auto">
-				{/* Sidebar */}
 				<aside className="w-64 h-screen bg-white shadow-lg rounded-lg p-6 mr-8">
 					<h3 className="text-xl font-bold mb-4">Admin Menu</h3>
 					<nav className="flex flex-col space-y-4">
@@ -352,8 +465,6 @@ function QuestManagement({ db }) {
 						</Link>
 					</nav>
 				</aside>
-
-				{/* Main Content */}
 				<div className="flex-1">
 					<div className="bg-white shadow-lg rounded-lg p-6 mb-8">
 						<h2 className="text-2xl font-semibold text-gray-700 mb-4">
@@ -452,8 +563,6 @@ function QuestManagement({ db }) {
 					</div>
 				</div>
 			</div>
-
-			{/* Create Quest Modal */}
 			{isCreateModalOpen && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg">
@@ -493,6 +602,35 @@ function QuestManagement({ db }) {
 							onChange={(e) => setNewQuestAnswer(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
+						<div className="mb-4">
+							<input
+								type="file"
+								accept="image/png, image/jpeg"
+								onChange={handleNewQuestImageChange}
+							/>
+							{newQuestImagePreview && (
+								<div>
+									<img
+										src={newQuestImagePreview}
+										alt="Preview"
+										style={{ maxWidth: '200px' }}
+										className="mt-2"
+									/>
+									<button
+										onClick={() => {
+											setNewQuestImageFile(null);
+											setNewQuestImagePreview(null);
+										}}
+										className="mt-2 px-2 py-1 bg-red-300 rounded"
+									>
+										Remove Image
+									</button>
+								</div>
+							)}
+						</div>
+						{uploadError && (
+							<div className="mt-2 text-red-600">{uploadError}</div>
+						)}
 						<div className="flex justify-end space-x-3">
 							<button
 								onClick={() => setCreateModalOpen(false)}
@@ -510,8 +648,6 @@ function QuestManagement({ db }) {
 					</div>
 				</div>
 			)}
-
-			{/* Edit Quest Modal */}
 			{isEditModalOpen && selectedQuestForEdit && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -551,6 +687,55 @@ function QuestManagement({ db }) {
 							onChange={(e) => setEditQuestAnswer(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
+						<div className="mb-4">
+							<input
+								type="file"
+								accept="image/png, image/jpeg"
+								onChange={handleEditQuestImageChange}
+							/>
+							{editQuestImagePreview ? (
+								<div>
+									<img
+										src={editQuestImagePreview}
+										alt="Preview"
+										style={{ maxWidth: '200px' }}
+										className="mt-2"
+									/>
+									<button
+										onClick={() => {
+											setEditQuestImageFile(null);
+											setEditQuestImagePreview(null);
+											setShouldDeleteExistingImage(true);
+										}}
+										className="mt-2 px-2 py-1 bg-red-300 rounded"
+									>
+										Remove Image
+									</button>
+								</div>
+							) : (
+								selectedQuestForEdit.imageUrl && (
+									<div>
+										<img
+											src={selectedQuestForEdit.imageUrl}
+											alt="Current"
+											style={{ maxWidth: '200px' }}
+											className="mt-2"
+										/>
+										<button
+											onClick={() => {
+												setShouldDeleteExistingImage(true);
+											}}
+											className="mt-2 px-2 py-1 bg-red-300 rounded"
+										>
+											Remove Image
+										</button>
+									</div>
+								)
+							)}
+						</div>
+						{uploadError && (
+							<div className="mt-2 text-red-600">{uploadError}</div>
+						)}
 						<div className="flex justify-end space-x-3">
 							<button
 								onClick={() => setEditModalOpen(false)}
@@ -568,8 +753,6 @@ function QuestManagement({ db }) {
 					</div>
 				</div>
 			)}
-
-			{/* Delete Quest Modal */}
 			{isDeleteModalOpen && selectedQuestForDelete && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -592,8 +775,6 @@ function QuestManagement({ db }) {
 					</div>
 				</div>
 			)}
-
-			{/* View Quest Details Modal */}
 			{isViewModalOpen && selectedQuestForView && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -613,6 +794,15 @@ function QuestManagement({ db }) {
 						<p>
 							<strong>Answer:</strong> {selectedQuestForView.answer}
 						</p>
+						{selectedQuestForView.imageUrl && (
+							<div className="mt-2">
+								<img
+									src={selectedQuestForView.imageUrl}
+									alt="Quest"
+									style={{ maxWidth: '200px' }}
+								/>
+							</div>
+						)}
 						<div className="flex justify-end space-x-3 mt-4">
 							<button
 								onClick={() => setViewModalOpen(false)}
