@@ -578,8 +578,8 @@ function EventSignup({ db }) {
 									style={{ marginRight: '10px' }}
 									required
 								/>
-								I understand that taking part in GCR25 will cost each player of
-								my team CHF 20.-, payable on the morning of the race.
+								I understand that taking part in GCR25 will cost each team CHF
+								20.-, payable on the morning of the race.
 							</label>
 							<label style={{ ...labelStyle, fontWeight: 'normal' }}>
 								<input
