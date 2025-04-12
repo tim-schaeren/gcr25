@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactPlayer from 'react-player';
 import {
 	doc,
 	getDoc,
@@ -39,12 +40,9 @@ function Dashboard({ user, db }) {
 	const [team, setTeam] = useState(null);
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
-	// Full-screen media overlay state: unified for image or video.
-	const [fullScreenMedia, setFullScreenMedia] = useState({
-		url: '',
-		type: null,
-	});
-	const [isFullScreenMediaOpen, setIsFullScreenMediaOpen] = useState(false);
+	// For full-screen image overlay
+	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
+	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
 
 	const navigate = useNavigate();
 
@@ -243,8 +241,8 @@ function Dashboard({ user, db }) {
 							{quest.imageUrl && (
 								<div
 									onClick={() => {
-										setFullScreenMedia({ url: quest.imageUrl, type: 'image' });
-										setIsFullScreenMediaOpen(true);
+										setFullScreenImageUrl(quest.imageUrl);
+										setIsFullScreenImageOpen(true);
 									}}
 									className="cursor-pointer mx-auto mb-4"
 									style={{ maxWidth: '300px' }}
@@ -263,25 +261,13 @@ function Dashboard({ user, db }) {
 								</div>
 							)}
 							{quest.videoUrl && (
-								<div
-									onClick={() => {
-										setFullScreenMedia({ url: quest.videoUrl, type: 'video' });
-										setIsFullScreenMediaOpen(true);
-									}}
-									className="cursor-pointer mx-auto mb-4"
-									style={{ maxWidth: '300px' }}
-								>
-									<video
-										src={quest.videoUrl}
-										alt="Quest Video"
-										style={{
-											width: '100%',
-											height: '100%',
-											maxHeight: '300px',
-											objectFit: 'contain',
-										}}
-										className="rounded-md"
-										controls={false}
+								<div className="mx-auto mb-4" style={{ maxWidth: '300px' }}>
+									{/* Use react-player to render the video */}
+									<ReactPlayer
+										url={quest.videoUrl}
+										controls
+										width="100%"
+										height="300px"
 									/>
 								</div>
 							)}
@@ -332,37 +318,23 @@ function Dashboard({ user, db }) {
 					</button>
 				</div>
 			</div>
-			{/* Full-Screen Media Overlay */}
-			{isFullScreenMediaOpen && (
+			{/* Full-Screen Image Overlay */}
+			{isFullScreenImageOpen && (
 				<div
-					onClick={() => setIsFullScreenMediaOpen(false)}
+					onClick={() => setIsFullScreenImageOpen(false)}
 					className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 cursor-pointer"
 				>
 					<div onClick={(e) => e.stopPropagation()}>
-						{fullScreenMedia.type === 'image' ? (
-							<img
-								src={fullScreenMedia.url}
-								alt="Full Screen"
-								style={{
-									maxWidth: '90%',
-									maxHeight: '90%',
-									objectFit: 'contain',
-								}}
-								className="rounded-md"
-							/>
-						) : fullScreenMedia.type === 'video' ? (
-							<video
-								src={fullScreenMedia.url}
-								alt="Full Screen Video"
-								style={{
-									maxWidth: '90%',
-									maxHeight: '90%',
-									objectFit: 'contain',
-								}}
-								className="rounded-md"
-								controls
-							/>
-						) : null}
+						<img
+							src={fullScreenImageUrl}
+							alt="Full Screen"
+							style={{
+								maxWidth: '90%',
+								maxHeight: '90%',
+								objectFit: 'contain',
+							}}
+							className="rounded-md"
+						/>
 					</div>
 				</div>
 			)}
