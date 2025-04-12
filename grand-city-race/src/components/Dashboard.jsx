@@ -39,7 +39,7 @@ function Dashboard({ user, db }) {
 	const [team, setTeam] = useState(null);
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
-	// Unified full-screen media overlay state:
+	// Full-screen media overlay state: unified for image or video.
 	const [fullScreenMedia, setFullScreenMedia] = useState({
 		url: '',
 		type: null,
@@ -47,6 +47,8 @@ function Dashboard({ user, db }) {
 	const [isFullScreenMediaOpen, setIsFullScreenMediaOpen] = useState(false);
 
 	const navigate = useNavigate();
+
+	// Use a ref to store the last location that was written to locationHistory.
 	const lastHistoryLocationRef = useRef(null);
 
 	// Fetch user data (team, quest, etc.)
@@ -336,30 +338,32 @@ function Dashboard({ user, db }) {
 					onClick={() => setIsFullScreenMediaOpen(false)}
 					className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 cursor-pointer"
 				>
-					{fullScreenMedia.type === 'image' ? (
-						<img
-							src={fullScreenMedia.url}
-							alt="Full Screen"
-							style={{
-								maxWidth: '90%',
-								maxHeight: '90%',
-								objectFit: 'contain',
-							}}
-							className="rounded-md"
-						/>
-					) : fullScreenMedia.type === 'video' ? (
-						<video
-							src={fullScreenMedia.url}
-							alt="Full Screen Video"
-							style={{
-								maxWidth: '90%',
-								maxHeight: '90%',
-								objectFit: 'contain',
-							}}
-							className="rounded-md"
-							controls
-						/>
-					) : null}
+					<div onClick={(e) => e.stopPropagation()}>
+						{fullScreenMedia.type === 'image' ? (
+							<img
+								src={fullScreenMedia.url}
+								alt="Full Screen"
+								style={{
+									maxWidth: '90%',
+									maxHeight: '90%',
+									objectFit: 'contain',
+								}}
+								className="rounded-md"
+							/>
+						) : fullScreenMedia.type === 'video' ? (
+							<video
+								src={fullScreenMedia.url}
+								alt="Full Screen Video"
+								style={{
+									maxWidth: '90%',
+									maxHeight: '90%',
+									objectFit: 'contain',
+								}}
+								className="rounded-md"
+								controls
+							/>
+						) : null}
+					</div>
 				</div>
 			)}
 		</div>
