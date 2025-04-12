@@ -84,7 +84,7 @@ function App() {
 				</button>
 			)}
 			<Routes>
-				<Route path="/" element={<Login auth={auth} />} />
+				<Route path="/" element={<EventSignup db={db} />} />
 				<Route path="/login" element={<Login auth={auth} />} />
 				<Route path="/event-signup" element={<EventSignup db={db} />} />
 				<Route
