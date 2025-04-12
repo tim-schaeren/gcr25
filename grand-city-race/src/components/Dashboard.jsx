@@ -39,12 +39,14 @@ function Dashboard({ user, db }) {
 	const [team, setTeam] = useState(null);
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
-	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
-	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
+	// Unified full-screen media overlay state:
+	const [fullScreenMedia, setFullScreenMedia] = useState({
+		url: '',
+		type: null,
+	});
+	const [isFullScreenMediaOpen, setIsFullScreenMediaOpen] = useState(false);
 
 	const navigate = useNavigate();
-
-	// Use a ref to store the last location that was written to locationHistory.
 	const lastHistoryLocationRef = useRef(null);
 
 	// Fetch user data (team, quest, etc.)
@@ -160,7 +162,6 @@ function Dashboard({ user, db }) {
 
 				// Determine if we should write this new position into locationHistory.
 				if (!lastHistoryLocationRef.current) {
-					// No history yet; add this location.
 					await addDoc(collection(db, 'users', user.uid, 'locationHistory'), {
 						lat: latitude,
 						lng: longitude,
@@ -236,12 +237,12 @@ function Dashboard({ user, db }) {
 					{quest ? (
 						<>
 							<h3 className="text-xl font-semibold">📜 Current Quest:</h3>
-							{/* Display quest image (scaled with object-fit: contain) if present */}
+							{/* Display quest media based on type */}
 							{quest.imageUrl && (
 								<div
 									onClick={() => {
-										setFullScreenImageUrl(quest.imageUrl);
-										setIsFullScreenImageOpen(true);
+										setFullScreenMedia({ url: quest.imageUrl, type: 'image' });
+										setIsFullScreenMediaOpen(true);
 									}}
 									className="cursor-pointer mx-auto mb-4"
 									style={{ maxWidth: '300px' }}
@@ -259,6 +260,29 @@ function Dashboard({ user, db }) {
 									/>
 								</div>
 							)}
+							{quest.videoUrl && (
+								<div
+									onClick={() => {
+										setFullScreenMedia({ url: quest.videoUrl, type: 'video' });
+										setIsFullScreenMediaOpen(true);
+									}}
+									className="cursor-pointer mx-auto mb-4"
+									style={{ maxWidth: '300px' }}
+								>
+									<video
+										src={quest.videoUrl}
+										alt="Quest Video"
+										style={{
+											width: '100%',
+											height: '100%',
+											maxHeight: '300px',
+											objectFit: 'contain',
+										}}
+										className="rounded-md"
+										controls={false}
+									/>
+								</div>
+							)}
 							<p className="text-gray-300 mt-2">{quest.text}</p>
 							<button
 								onClick={() => navigate('/solver')}
@@ -268,7 +292,6 @@ function Dashboard({ user, db }) {
 							</button>
 						</>
 					) : nextHint ? (
-						// If no active quest, but a hint exists, show the next quest hint.
 						<div>
 							<h3 className="text-xl font-semibold">🔑 Next Quest Hint:</h3>
 							<p className="text-gray-300 mt-2">{nextHint}</p>
@@ -307,22 +330,36 @@ function Dashboard({ user, db }) {
 					</button>
 				</div>
 			</div>
-			{/* Full-Screen Image Overlay */}
-			{isFullScreenImageOpen && (
+			{/* Full-Screen Media Overlay */}
+			{isFullScreenMediaOpen && (
 				<div
-					onClick={() => setIsFullScreenImageOpen(false)}
+					onClick={() => setIsFullScreenMediaOpen(false)}
 					className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 cursor-pointer"
 				>
-					<img
-						src={fullScreenImageUrl}
-						alt="Full Screen"
-						style={{
-							maxWidth: '90%',
-							maxHeight: '90%',
-							objectFit: 'contain',
-						}}
-						className="rounded-md"
-					/>
+					{fullScreenMedia.type === 'image' ? (
+						<img
+							src={fullScreenMedia.url}
+							alt="Full Screen"
+							style={{
+								maxWidth: '90%',
+								maxHeight: '90%',
+								objectFit: 'contain',
+							}}
+							className="rounded-md"
+						/>
+					) : fullScreenMedia.type === 'video' ? (
+						<video
+							src={fullScreenMedia.url}
+							alt="Full Screen Video"
+							style={{
+								maxWidth: '90%',
+								maxHeight: '90%',
+								objectFit: 'contain',
+							}}
+							className="rounded-md"
+							controls
+						/>
+					) : null}
 				</div>
 			)}
 		</div>
