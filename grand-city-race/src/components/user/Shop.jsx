@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import Robbery from './items/Robbery';
-import DefaultItem from './items/DefaultItem';
+import Robbery from '../items/Robbery';
+import DefaultItem from '../items/DefaultItem';
 
 import {
 	collection,

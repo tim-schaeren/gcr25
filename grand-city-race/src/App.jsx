@@ -4,18 +4,18 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import Dashboard from './components/Dashboard';
-import QRScanner from './components/QRScanner';
-import Shop from './components/Shop';
-import AdminDashboard from './components/AdminDashboard';
-import Login from './components/Login';
-import Solver from './components/Solver';
-import GroupManagement from './components/TeamManagement';
-import UserManagement from './components/UserManagement';
-import QuestManagement from './components/QuestManagement';
-import ItemManagement from './components/ItemManagement';
-import EventSignup from './components/EventSignup';
-import RegistrationManagement from './components/RegistrationManagement';
+import Dashboard from './components/user/Dashboard';
+import QRScanner from './components/user/QRScanner';
+import Shop from './components/user/Shop';
+import AdminDashboard from './components/admin/AdminDashboard';
+import Login from './components/user/Login';
+import Solver from './components/user/Solver';
+import GroupManagement from './components/admin/TeamManagement';
+import UserManagement from './components/admin/UserManagement';
+import QuestManagement from './components/admin/QuestManagement';
+import ItemManagement from './components/admin/ItemManagement';
+import EventSignup from './components/user/EventSignup';
+import RegistrationManagement from './components/admin/RegistrationManagement';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
