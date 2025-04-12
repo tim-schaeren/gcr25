@@ -5,7 +5,6 @@ import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import Dashboard from './components/user/Dashboard';
-import QRScanner from './components/user/QRScanner';
 import Shop from './components/user/Shop';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Login from './components/user/Login';
@@ -121,12 +120,6 @@ function App() {
 					path="/dashboard"
 					element={
 						user ? <Dashboard user={user} db={db} /> : <Navigate to="/login" />
-					}
-				/>
-				<Route
-					path="/qrscanner"
-					element={
-						user ? <QRScanner user={user} db={db} /> : <Navigate to="/login" />
 					}
 				/>
 				<Route

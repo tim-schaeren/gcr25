@@ -23,7 +23,6 @@ import {
 	useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import {
@@ -604,34 +603,6 @@ function QuestManagement({ db, storage }) {
 		setViewModalOpen(true);
 	};
 
-	const downloadQRCode = async (questId) => {
-		try {
-			const url = await QRCode.toDataURL(questId);
-			const link = document.createElement('a');
-			link.href = url;
-			link.download = `${questId}.png`;
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-		} catch (err) {
-			console.error('Error generating QR code:', err);
-		}
-	};
-
-	const generateAllQRCodes = async () => {
-		const zip = new JSZip();
-		const folder = zip.folder('qrcodes');
-		const promises = sortedQuests.map(async (quest) => {
-			const url = await QRCode.toDataURL(quest.id);
-			const base64Data = url.split(',')[1];
-			folder.file(`${quest.sequence}.png`, base64Data, { base64: true });
-		});
-		await Promise.all(promises);
-		zip.generateAsync({ type: 'blob' }).then((content) => {
-			saveAs(content, 'qrcodes.zip');
-		});
-	};
-
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
 	);
@@ -769,15 +740,6 @@ function QuestManagement({ db, storage }) {
 													>
 														❌ Delete
 													</button>
-													<button
-														onClick={(e) => {
-															e.stopPropagation();
-															downloadQRCode(quest.id);
-														}}
-														className="text-green-600 hover:text-green-800"
-													>
-														QR
-													</button>
 												</td>
 											</SortableRow>
 										))}
@@ -792,12 +754,6 @@ function QuestManagement({ db, storage }) {
 							className="bg-blue-300 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition"
 						>
 							➕ Create Quest
-						</button>
-						<button
-							onClick={generateAllQRCodes}
-							className="bg-green-300 text-black px-4 py-2 rounded-lg hover:bg-green-700 transition"
-						>
-							Generate QR Codes
 						</button>
 					</div>
 				</div>

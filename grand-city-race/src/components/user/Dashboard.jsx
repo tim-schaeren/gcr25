@@ -40,16 +40,16 @@ function Dashboard({ user, db }) {
 	const [team, setTeam] = useState(null);
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
+	// New state for current location (for quest activation checking)
+	const [currentLocation, setCurrentLocation] = useState(null);
 	// For full-screen image overlay
 	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
 	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
 
 	const navigate = useNavigate();
-
-	// Use a ref to store the last location that was written to locationHistory.
 	const lastHistoryLocationRef = useRef(null);
 
-	// Fetch user data (team, quest, etc.)
+	// Fetch user data, team, and if available, the active quest.
 	useEffect(() => {
 		if (!user) return;
 
@@ -71,7 +71,7 @@ function Dashboard({ user, db }) {
 						setTeam({ id: userData.teamId, ...teamData });
 						setCurrency(teamData.currency || 0);
 
-						// If there is an active quest, fetch and display it.
+						// If there is an active quest, fetch its details.
 						if (teamData.progress?.currentQuest) {
 							const questRef = doc(
 								db,
@@ -89,8 +89,7 @@ function Dashboard({ user, db }) {
 							teamData.progress?.previousQuests &&
 							teamData.progress.previousQuests.length > 0
 						) {
-							// No active quest—but the team has solved at least one quest.
-							// Fetch the last solved quest to determine its sequence.
+							// If no active quest, get the hint for the next quest.
 							const solvedQuests = teamData.progress.previousQuests;
 							const lastSolvedQuestId = solvedQuests[solvedQuests.length - 1];
 							const lastQuestRef = doc(db, 'quests', lastSolvedQuestId);
@@ -98,7 +97,6 @@ function Dashboard({ user, db }) {
 							if (lastQuestSnap.exists()) {
 								const lastQuestData = lastQuestSnap.data();
 								const nextSequence = lastQuestData.sequence + 1;
-								// Query the next quest (by sequence) to get its hint.
 								const questsRef = collection(db, 'quests');
 								const qNext = query(
 									questsRef,
@@ -122,45 +120,22 @@ function Dashboard({ user, db }) {
 		fetchUserData();
 	}, [user, db]);
 
-	// On mount, fetch the most recent location from the user's locationHistory subcollection.
+	// Update location every 30 seconds (for history and Firestore update)
 	useEffect(() => {
 		if (!user) return;
-
-		const fetchLastHistory = async () => {
-			try {
-				const historyRef = collection(db, 'users', user.uid, 'locationHistory');
-				const q = query(historyRef, orderBy('timestamp', 'desc'), limit(1));
-				const historySnap = await getDocs(q);
-				if (!historySnap.empty) {
-					const lastDoc = historySnap.docs[0];
-					const data = lastDoc.data();
-					lastHistoryLocationRef.current = { lat: data.lat, lng: data.lng };
-				}
-			} catch (error) {
-				console.error('Error fetching location history:', error);
-			}
-		};
-
-		fetchLastHistory();
-	}, [user, db]);
-
-	// Start location tracking: update location every 30 seconds.
-	useEffect(() => {
-		if (!user) return;
-
-		console.log('starting to track location');
 
 		const updateLocation = async (position) => {
 			const { latitude, longitude } = position.coords;
 			try {
-				// Update user's current location and lastUpdated in the main document.
 				const userRef = doc(db, 'users', user.uid);
 				await updateDoc(userRef, {
 					location: { lat: latitude, lng: longitude },
 					lastUpdated: new Date(),
 				});
+				// Also update the local currentLocation state.
+				setCurrentLocation({ lat: latitude, lng: longitude });
 
-				// Determine if we should write this new position into locationHistory.
+				// Write to locationHistory if moved sufficiently.
 				if (!lastHistoryLocationRef.current) {
 					await addDoc(collection(db, 'users', user.uid, 'locationHistory'), {
 						lat: latitude,
@@ -169,14 +144,12 @@ function Dashboard({ user, db }) {
 					});
 					lastHistoryLocationRef.current = { lat: latitude, lng: longitude };
 				} else {
-					// Calculate distance between the last history point and the new position.
 					const distance = getDistanceFromLatLonInMeters(
 						lastHistoryLocationRef.current.lat,
 						lastHistoryLocationRef.current.lng,
 						latitude,
 						longitude
 					);
-					console.log(`Distance moved: ${distance.toFixed(2)} meters`);
 					if (distance >= 10) {
 						await addDoc(collection(db, 'users', user.uid, 'locationHistory'), {
 							lat: latitude,
@@ -208,7 +181,6 @@ function Dashboard({ user, db }) {
 				},
 				{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
 			);
-			// Update location every 30 seconds.
 			const interval = setInterval(() => {
 				navigator.geolocation.getCurrentPosition(
 					updateLocation,
@@ -220,7 +192,111 @@ function Dashboard({ user, db }) {
 		} else {
 			console.error('Geolocation is not supported by this browser.');
 		}
-	}, [user, db]); // Note: lastHistoryLocationRef is not in dependencies
+	}, [user, db]);
+
+	// ------------------- QUEST ACTIVATION LOGIC BASED ON LOCATION -------------------
+	// This effect runs every 5 seconds to check if the user is within the fence of the next quest.
+	// If the user is within the fence and no quest is active, it activates the quest.
+	// If the user leaves the fence, it clears an active quest.
+	useEffect(() => {
+		if (!user || !db) return;
+
+		const checkQuestActivation = async () => {
+			if (!team) return;
+			if (!navigator.geolocation) return;
+			navigator.geolocation.getCurrentPosition(
+				async (position) => {
+					const loc = {
+						lat: position.coords.latitude,
+						lng: position.coords.longitude,
+					};
+					setCurrentLocation(loc); // update local state
+
+					const teamRef = doc(db, 'teams', team.id);
+
+					// If a quest is already active, verify that the user is still within its fence.
+					if (team.progress?.currentQuest) {
+						const questRef = doc(db, 'quests', team.progress.currentQuest);
+						const questSnap = await getDoc(questRef);
+						if (questSnap.exists()) {
+							const questData = questSnap.data();
+							const distance = getDistanceFromLatLonInMeters(
+								loc.lat,
+								loc.lng,
+								questData.location.lat,
+								questData.location.lng
+							);
+							// If the user left the fence, clear the active quest.
+							if (distance > questData.location.fence) {
+								await updateDoc(teamRef, { 'progress.currentQuest': '' });
+								setTeam((prev) => ({
+									...prev,
+									progress: { ...prev.progress, currentQuest: '' },
+								}));
+								setQuest(null);
+							}
+						}
+					} else {
+						// No active quest – determine the next quest.
+						let nextSequence = 1;
+						if (
+							team.progress?.previousQuests &&
+							team.progress.previousQuests.length > 0
+						) {
+							const lastQuestId =
+								team.progress.previousQuests[
+									team.progress.previousQuests.length - 1
+								];
+							const lastQuestRef = doc(db, 'quests', lastQuestId);
+							const lastQuestSnap = await getDoc(lastQuestRef);
+							if (lastQuestSnap.exists()) {
+								const lastQuestData = lastQuestSnap.data();
+								nextSequence = lastQuestData.sequence + 1;
+							}
+						}
+						// Query for the quest with the nextSequence.
+						const questsRef = collection(db, 'quests');
+						const qNext = query(
+							questsRef,
+							where('sequence', '==', nextSequence)
+						);
+						const nextSnap = await getDocs(qNext);
+						if (!nextSnap.empty) {
+							const nextDoc = nextSnap.docs[0];
+							const nextQuestData = nextDoc.data();
+							const distance = getDistanceFromLatLonInMeters(
+								loc.lat,
+								loc.lng,
+								nextQuestData.location.lat,
+								nextQuestData.location.lng
+							);
+							// If the user is within the quest fence, activate this quest.
+							if (distance <= nextQuestData.location.fence) {
+								await updateDoc(teamRef, {
+									'progress.currentQuest': nextDoc.id,
+								});
+								setTeam((prev) => ({
+									...prev,
+									progress: { ...prev.progress, currentQuest: nextDoc.id },
+								}));
+								setQuest({ id: nextDoc.id, ...nextQuestData });
+							}
+						}
+					}
+				},
+				(err) => {
+					console.error('Error checking quest activation:', err);
+				},
+				{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+			);
+		};
+
+		const activationInterval = setInterval(() => {
+			checkQuestActivation();
+		}, 5000);
+
+		return () => clearInterval(activationInterval);
+	}, [team, user, db]);
 
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
@@ -237,7 +313,6 @@ function Dashboard({ user, db }) {
 					{quest ? (
 						<>
 							<h3 className="text-xl font-semibold">📜 Current Quest:</h3>
-							{/* Display quest media based on type */}
 							{quest.imageUrl && (
 								<div
 									onClick={() => {
@@ -262,7 +337,6 @@ function Dashboard({ user, db }) {
 							)}
 							{quest.videoUrl && (
 								<div className="mx-auto mb-4" style={{ maxWidth: '300px' }}>
-									{/* Use react-player to render the video */}
 									<ReactPlayer
 										url={quest.videoUrl}
 										controls
@@ -284,12 +358,12 @@ function Dashboard({ user, db }) {
 							<h3 className="text-xl font-semibold">🔑 Next Quest Hint:</h3>
 							<p className="text-gray-300 mt-2">{nextHint}</p>
 							<p className="text-gray-400 mt-2">
-								Find the QR code and scan it!
+								Get close to the quest area to activate the quest.
 							</p>
 						</div>
 					) : (
 						<p className="text-gray-400">
-							⚡ Scan a QR code to start your first quest!
+							⚡ Move closer to a quest area to start your next quest!
 						</p>
 					)}
 				</div>
@@ -304,12 +378,6 @@ function Dashboard({ user, db }) {
 					</p>
 				)}
 				<div className="flex flex-col sm:flex-row justify-between mt-6">
-					<button
-						onClick={() => navigate('/qrscanner')}
-						className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md mb-3 sm:mb-0 sm:mr-2"
-					>
-						📸 Scan QR Code
-					</button>
 					<button
 						onClick={() => navigate('/shop')}
 						className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md"
