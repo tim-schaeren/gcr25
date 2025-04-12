@@ -14,6 +14,7 @@ import GroupManagement from './components/TeamManagement';
 import UserManagement from './components/UserManagement';
 import QuestManagement from './components/QuestManagement';
 import ItemManagement from './components/ItemManagement';
+import EventSignup from './components/EventSignup';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -85,6 +86,11 @@ function App() {
 			<Routes>
 				<Route path="/" element={<Login auth={auth} />} />
 				<Route path="/login" element={<Login auth={auth} />} />
+				<Route path="/event-signup" element={<EventSignup db={db} />} />
+				<Route
+					path="/thank-you"
+					element={<div>Thank you for signing up - We will be in touch.</div>}
+				/>
 				<Route
 					path="/dashboard"
 					element={
