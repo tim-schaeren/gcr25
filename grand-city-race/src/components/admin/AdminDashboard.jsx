@@ -50,7 +50,7 @@ function AdminDashboard({ db }) {
 		return () => clearInterval(interval);
 	}, [db, isTabActive]);
 
-	// Use Firestore's onSnapshot for real‑time teams updates on teams.
+	// Real‑time teams updates.
 	useEffect(() => {
 		const teamsRef = collection(db, 'teams');
 		const unsubscribe = onSnapshot(teamsRef, (snapshot) => {
@@ -94,8 +94,7 @@ function AdminDashboard({ db }) {
 		}
 	}, []);
 
-	// ---------- Markers for Current Locations ----------
-	// Dependency includes teams so we can lookup team color.
+	// ---------- Markers for Current User Locations (unchanged) ----------
 	useEffect(() => {
 		if (!map) return;
 
@@ -104,20 +103,15 @@ function AdminDashboard({ db }) {
 
 			// default fallback team
 			let userTeam = 'no team';
-
-			// find team of user
 			if (user.teamId && teams.length > 0) {
 				userTeam = teams.find((team) => team.id === user.teamId);
 			}
 
-			// Determine the marker color based on the user's team.
-			let markerColor = 'white'; // default fallback
-
+			let markerColor = 'white';
 			if (userTeam && userTeam.color && userTeam.color.hex) {
 				markerColor = userTeam.color.hex;
 			}
 
-			// Calculate age of location in seconds based on lastUpdated timestamp.
 			const lastUpdated = user.lastUpdated
 				? new Date(user.lastUpdated.seconds * 1000)
 				: null;
@@ -129,20 +123,16 @@ function AdminDashboard({ db }) {
 					? `Last updated: ${timeDiffSec} sec ago`
 					: 'Unknown time';
 
-			// if the location is older than 30 seconds, paint the marker gray.
 			if (timeDiffSec == null || timeDiffSec > 30) {
 				markerColor = 'gray';
 			}
 
-			// ----- AdvancedMarkerElement for Current Location -----
 			if (markersByUser.current[user.id]) {
-				// Update the marker's position and icon.
 				markersByUser.current[user.id].position = pos;
 				markersByUser.current[user.id].content.style.backgroundColor =
 					markerColor;
 				markersByUser.current[user.id].lastUpdated = lastUpdated;
 			} else {
-				// Create a custom HTML element to use as marker content.
 				const markerDiv = document.createElement('div');
 				markerDiv.style.width = '16px';
 				markerDiv.style.height = '16px';
@@ -150,15 +140,14 @@ function AdminDashboard({ db }) {
 				markerDiv.style.backgroundColor = markerColor;
 				markerDiv.style.border = '1px solid black';
 
-				// Create the AdvancedMarkerElement.
 				const advMarker = new google.maps.marker.AdvancedMarkerElement({
 					position: pos,
 					map: map,
 					title: (user.name || user.email) + ' - ' + userTeam.name,
 					content: markerDiv,
+					// By not setting a low zIndex here, these user markers will naturally be above our quest overlays.
 				});
 
-				// Create an info window for this marker.
 				const infoWindow = new google.maps.InfoWindow({
 					content: `<div class='text-black font-bold'>${
 						(user.name || user.email) + ' - ' + userTeam.name
@@ -169,7 +158,6 @@ function AdminDashboard({ db }) {
 					infoWindow.open({ anchor: advMarker, map });
 				});
 
-				// Store extra data on the marker for later updates.
 				advMarker.infoWindow = infoWindow;
 				advMarker.lastUpdated = lastUpdated;
 				advMarker.title = (user.name || user.email) + ' - ' + userTeam.name;
@@ -178,7 +166,6 @@ function AdminDashboard({ db }) {
 			}
 		});
 
-		// Update open info windows every second so the "last updated" text is current.
 		const interval = setInterval(() => {
 			Object.values(markersByUser.current).forEach((marker) => {
 				if (marker.infoWindow && marker.infoWindow.getMap()) {
@@ -200,15 +187,12 @@ function AdminDashboard({ db }) {
 		return () => clearInterval(interval);
 	}, [map, users, teams]);
 
-	// ---------- Polyline Trails from Complete Firestore History ----------
-	// For each user, fetch the full locationHistory subcollection and draw the complete trail.
-	// Dependency includes teams so we can use the same color as the marker.
+	// ---------- Polyline Trails from Complete Firestore History (unchanged) ----------
 	useEffect(() => {
 		if (!map || !db) return;
 
 		users.forEach((user) => {
 			const historyRef = collection(db, 'users', user.id, 'locationHistory');
-			// Query the complete history ordered by timestamp ascending.
 			const q = query(historyRef, orderBy('timestamp', 'asc'));
 			getDocs(q)
 				.then((snapshot) => {
@@ -217,8 +201,7 @@ function AdminDashboard({ db }) {
 						return new google.maps.LatLng(data.lat, data.lng);
 					});
 					if (path.length > 0) {
-						// Determine the trail color from the user's team.
-						let trailColor = 'white'; // fallback
+						let trailColor = 'white';
 						if (user.teamId && teams.length > 0) {
 							const userTeam = teams.find((team) => team.id === user.teamId);
 							if (userTeam && userTeam.color && userTeam.color.hex) {
@@ -234,7 +217,7 @@ function AdminDashboard({ db }) {
 							const polyline = new google.maps.Polyline({
 								path: path,
 								geodesic: true,
-								strokeColor: trailColor, // Use the hex value directly.
+								strokeColor: trailColor,
 								strokeOpacity: 1.0,
 								strokeWeight: 2,
 							});
@@ -252,6 +235,87 @@ function AdminDashboard({ db }) {
 				);
 		});
 	}, [map, users, db, teams]);
+
+	// ---------- QUESTS OVERLAY: Quest Markers & Fence Circles ----------
+	// Fetch quests once on page-load (no real‑time updates) and add a marker and a circle for each.
+	// ---------- QUESTS OVERLAY: Quest Markers & Fence Circles ----------
+	useEffect(() => {
+		if (!map || !db) return;
+		const fetchQuests = async () => {
+			const questsRef = collection(db, 'quests');
+			const questsSnap = await getDocs(questsRef);
+			const questsData = questsSnap.docs.map((doc) => ({
+				id: doc.id,
+				...doc.data(),
+			}));
+
+			questsData.forEach((quest) => {
+				// Only process quests with a valid location.
+				if (
+					quest.location &&
+					quest.location.lat &&
+					quest.location.lng &&
+					quest.location.fence
+				) {
+					const pos = new google.maps.LatLng(
+						quest.location.lat,
+						quest.location.lng
+					);
+
+					// Create a custom marker element that displays the quest sequence.
+					const markerDiv = document.createElement('div');
+					markerDiv.style.width = '30px';
+					markerDiv.style.height = '30px';
+					// Remove borderRadius to make it square instead of circular.
+					// markerDiv.style.borderRadius = '50%';
+					markerDiv.style.backgroundColor = 'rgba(128,128,128,0.5)'; // grey with opacity
+					markerDiv.style.display = 'flex';
+					markerDiv.style.alignItems = 'center';
+					markerDiv.style.justifyContent = 'center';
+					markerDiv.style.fontSize = '16px';
+					markerDiv.style.fontWeight = 'bold';
+					markerDiv.style.color = 'black';
+					markerDiv.innerText = quest.sequence.toString();
+
+					// Create an AdvancedMarkerElement for the quest.
+					const questMarker = new google.maps.marker.AdvancedMarkerElement({
+						position: pos,
+						map: map,
+						title: `Quest: ${quest.name}`,
+						content: markerDiv,
+						zIndex: 50, // Lower z-index to allow user markers to appear on top
+					});
+
+					// Create an info window that shows quest details (name, question, and fence).
+					const questInfoWindow = new google.maps.InfoWindow({
+						content: `<div style="opacity: 0.9">
+								<strong>${quest.name}</strong><br/>
+								${quest.text}<br/>
+								Fence: ${quest.location.fence} m
+							  </div>`,
+					});
+					questMarker.addListener('click', () => {
+						questInfoWindow.open({ anchor: questMarker, map });
+					});
+
+					// Draw the fence circle around the quest location with grey styling.
+					const questCircle = new google.maps.Circle({
+						map: map,
+						center: pos,
+						radius: quest.location.fence,
+						fillColor: 'gray',
+						fillOpacity: 0.2,
+						strokeColor: 'gray',
+						strokeOpacity: 0.7,
+						strokeWeight: 1,
+						zIndex: 40, // Ensure the circle is below the marker
+					});
+				}
+			});
+		};
+
+		fetchQuests();
+	}, [map, db]);
 
 	return (
 		<div className="min-h-screen h-screen min-w-screen w-screen bg-gray-100 py-20 px-4">
@@ -346,7 +410,6 @@ function AdminDashboard({ db }) {
 										key={team.id}
 										className="odd:bg-white even:bg-gray-100 hover:bg-gray-200"
 									>
-										{/* Color swatch cell */}
 										<td className="border border-gray-300 p-4">
 											<div
 												className="w-4 h-4 inline-block rounded"
