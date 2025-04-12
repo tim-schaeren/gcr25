@@ -336,6 +336,7 @@ function EventSignup({ db }) {
 								onChange={(e) => setName1(e.target.value)}
 								onKeyDown={handleKeyDown}
 								style={inputStyle}
+								placeholder="e.g., Max Mustermann "
 								required
 							/>
 						</div>
