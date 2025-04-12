@@ -298,6 +298,12 @@ function AdminDashboard({ db }) {
 						>
 							Items
 						</Link>
+						<Link
+							to="/admin/registrations"
+							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
+						>
+							Registrations
+						</Link>
 					</nav>
 				</aside>
 
