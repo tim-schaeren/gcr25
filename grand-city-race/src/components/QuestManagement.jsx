@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
 	collection,
 	onSnapshot,
@@ -26,14 +26,80 @@ import { CSS } from '@dnd-kit/utilities';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-
-// Import Firebase Storage functions (aliased as storageRef to avoid confusion with Firestore's doc ref)
 import {
 	ref as storageRef,
 	uploadBytes,
 	getDownloadURL,
 	deleteObject,
 } from 'firebase/storage';
+
+// ── Reusable component for picking a location on a Google Map ──
+function MapPicker({ initialLocation, initialFence, onChange }) {
+	const mapRef = useRef(null);
+	const mapInstanceRef = useRef(null);
+	const markerRef = useRef(null);
+	const circleRef = useRef(null);
+
+	useEffect(() => {
+		if (!window.google) {
+			console.error('Google Maps API not loaded');
+			return;
+		}
+
+		// Use initial location or a default center
+		const defaultCenter = initialLocation || { lat: 46.9481, lng: 7.4474 };
+
+		// Initialize map
+		mapInstanceRef.current = new google.maps.Map(mapRef.current, {
+			center: defaultCenter,
+			zoom: 14,
+		});
+
+		// Create a draggable marker
+		markerRef.current = new google.maps.Marker({
+			position: defaultCenter,
+			map: mapInstanceRef.current,
+			draggable: true,
+		});
+
+		// Create a circle overlay using the given fence radius
+		circleRef.current = new google.maps.Circle({
+			map: mapInstanceRef.current,
+			center: defaultCenter,
+			radius: initialFence || 20, // default to 20 meters if none provided
+			fillColor: '#AA0000',
+			fillOpacity: 0.2,
+			strokeColor: '#AA0000',
+			strokeOpacity: 0.7,
+		});
+		// Keep the circle centered on the marker
+		circleRef.current.bindTo('center', markerRef.current, 'position');
+
+		// Update parent state when the marker drag ends.
+		markerRef.current.addListener('dragend', () => {
+			const pos = markerRef.current.getPosition();
+			const lat = pos.lat();
+			const lng = pos.lng();
+			if (onChange) {
+				onChange({ lat, lng, fence: circleRef.current.getRadius() });
+			}
+		});
+	}, []); // Initialize only once
+
+	// When the fence (radius) value changes, update the circle.
+	useEffect(() => {
+		if (circleRef.current) {
+			circleRef.current.setRadius(initialFence);
+			// In case you want to propagate the new fence value:
+			if (onChange && markerRef.current) {
+				const pos = markerRef.current.getPosition();
+				onChange({ lat: pos.lat(), lng: pos.lng(), fence: initialFence });
+			}
+		}
+	}, [initialFence]);
+
+	return <div ref={mapRef} style={{ height: '300px', width: '100%' }}></div>;
+}
 
 function SortableRow({ id, children, onClick }) {
 	const {
@@ -67,12 +133,18 @@ function SortableRow({ id, children, onClick }) {
 function QuestManagement({ db, storage }) {
 	// Quest data state
 	const [quests, setQuests] = useState([]);
-	// Create modal state
+	// ── State for quest info ──
 	const [newQuestName, setNewQuestName] = useState('');
 	const [newQuestSequence, setNewQuestSequence] = useState('');
 	const [newQuestHint, setNewQuestHint] = useState('');
 	const [newQuestText, setNewQuestText] = useState('');
 	const [newQuestAnswer, setNewQuestAnswer] = useState('');
+	// New state for location and fence in the add modal.
+	const [newQuestLocation, setNewQuestLocation] = useState({
+		lat: 46.9481,
+		lng: 7.4474,
+	});
+	const [newQuestFence, setNewQuestFence] = useState(20);
 	// Combined media state for creation (image OR video)
 	const [newQuestMediaFile, setNewQuestMediaFile] = useState(null);
 	const [newQuestMediaPreview, setNewQuestMediaPreview] = useState(null);
@@ -91,11 +163,16 @@ function QuestManagement({ db, storage }) {
 	const [editQuestHint, setEditQuestHint] = useState('');
 	const [editQuestText, setEditQuestText] = useState('');
 	const [editQuestAnswer, setEditQuestAnswer] = useState('');
+	// New state for location/fence in the edit modal.
+	const [editQuestLocation, setEditQuestLocation] = useState({
+		lat: 46.9481,
+		lng: 7.4474,
+	});
+	const [editQuestFence, setEditQuestFence] = useState(20);
 	// Combined media state for editing
 	const [editQuestMediaFile, setEditQuestMediaFile] = useState(null);
 	const [editQuestMediaPreview, setEditQuestMediaPreview] = useState(null);
 	const [editQuestMediaType, setEditQuestMediaType] = useState(null); // "image" or "video"
-	// Flag to indicate if user wants to remove any currently stored media
 	const [shouldDeleteExistingMedia, setShouldDeleteExistingMedia] =
 		useState(false);
 
@@ -103,9 +180,8 @@ function QuestManagement({ db, storage }) {
 	const [isViewModalOpen, setViewModalOpen] = useState(false);
 	const [selectedQuestForView, setSelectedQuestForView] = useState(null);
 
-	// Upload error state
+	// Upload error and loading states.
 	const [uploadError, setUploadError] = useState(null);
-	// Upload loading state
 	const [isUploading, setIsUploading] = useState(false);
 
 	// ── Firestore Listener ──
@@ -121,12 +197,13 @@ function QuestManagement({ db, storage }) {
 		return () => unsubscribe();
 	}, [db]);
 
-	// ── Media File Input Handlers ──
+	// ── Media File Input Handlers (unchanged) ──
 	const handleNewQuestMediaChange = (e) => {
+		// ... existing media handling code remains here ...
 		const file = e.target.files[0];
 		if (file) {
 			if (file.type.startsWith('image/')) {
-				const maxSize = 5 * 1024 * 1024; // 5MB
+				const maxSize = 5 * 1024 * 1024;
 				if (file.size > maxSize) {
 					alert('Image file size should be less than 5MB');
 					return;
@@ -135,12 +212,11 @@ function QuestManagement({ db, storage }) {
 				setNewQuestMediaPreview(URL.createObjectURL(file));
 				setNewQuestMediaType('image');
 			} else if (file.type.startsWith('video/')) {
-				// Allow MP4 and MOV (MIME type "video/mp4" and "video/quicktime")
 				if (!(file.type === 'video/mp4' || file.type === 'video/quicktime')) {
 					alert('Only MP4 and MOV videos are allowed');
 					return;
 				}
-				const maxSize = 20 * 1024 * 1024; // 20MB
+				const maxSize = 20 * 1024 * 1024;
 				if (file.size > maxSize) {
 					alert('Video file size should be less than 20MB');
 					return;
@@ -155,10 +231,11 @@ function QuestManagement({ db, storage }) {
 	};
 
 	const handleEditQuestMediaChange = (e) => {
+		// ... existing media handling code remains here ...
 		const file = e.target.files[0];
 		if (file) {
 			if (file.type.startsWith('image/')) {
-				const maxSize = 5 * 1024 * 1024; // 5MB
+				const maxSize = 5 * 1024 * 1024;
 				if (file.size > maxSize) {
 					alert('Image file size should be less than 5MB');
 					return;
@@ -172,7 +249,7 @@ function QuestManagement({ db, storage }) {
 					alert('Only MP4 and MOV videos are allowed');
 					return;
 				}
-				const maxSize = 200 * 1024 * 1024; // 200MB
+				const maxSize = 200 * 1024 * 1024;
 				if (file.size > maxSize) {
 					alert('Video file size should be less than 200MB');
 					return;
@@ -195,7 +272,7 @@ function QuestManagement({ db, storage }) {
 		setEditQuestHint(quest.hint || '');
 		setEditQuestText(quest.text || '');
 		setEditQuestAnswer(quest.answer || '');
-		// Pre-populate media state from existing quest data.
+		// Prepopulate media info as before…
 		if (quest.imageUrl) {
 			setEditQuestMediaType('image');
 			setEditQuestMediaPreview(quest.imageUrl);
@@ -208,6 +285,17 @@ function QuestManagement({ db, storage }) {
 		}
 		setEditQuestMediaFile(null);
 		setShouldDeleteExistingMedia(false);
+		// ── NEW: Prepopulate location and fence if available ──
+		if (quest.location) {
+			setEditQuestLocation({
+				lat: quest.location.lat,
+				lng: quest.location.lng,
+			});
+			setEditQuestFence(quest.location.fence);
+		} else {
+			setEditQuestLocation({ lat: 46.9481, lng: 7.4474 });
+			setEditQuestFence(20);
+		}
 		setEditModalOpen(true);
 	};
 
@@ -268,6 +356,7 @@ function QuestManagement({ db, storage }) {
 			}
 		}
 
+		// ── Include the new location data in the quest document ──
 		batch.set(newQuestRef, {
 			name: newQuestName,
 			sequence: newSeq,
@@ -278,10 +367,16 @@ function QuestManagement({ db, storage }) {
 			imagePath: newQuestMediaType === 'image' ? imagePath : '',
 			videoUrl: newQuestMediaType === 'video' ? videoUrl : '',
 			videoPath: newQuestMediaType === 'video' ? videoPath : '',
+			location: {
+				lat: newQuestLocation.lat,
+				lng: newQuestLocation.lng,
+				fence: newQuestFence,
+			},
 		});
 
 		await batch.commit();
 
+		// Reset states for quest creation.
 		setNewQuestName('');
 		setNewQuestSequence('');
 		setNewQuestHint('');
@@ -290,12 +385,15 @@ function QuestManagement({ db, storage }) {
 		setNewQuestMediaFile(null);
 		setNewQuestMediaPreview(null);
 		setNewQuestMediaType(null);
+		// Optionally reset location to the default
+		setNewQuestLocation({ lat: 46.9481, lng: 7.4474 });
+		setNewQuestFence(20);
 		setUploadError(null);
 		setCreateModalOpen(false);
 		setIsUploading(false);
 	};
 
-	// ── DELETE QUEST ──
+	// ── DELETE QUEST (no changes needed for location) ──
 	const deleteQuest = async () => {
 		if (!selectedQuestForDelete) return;
 
@@ -303,7 +401,6 @@ function QuestManagement({ db, storage }) {
 		if (!questToDelete) return;
 		const deletedSeq = questToDelete.sequence;
 
-		// Delete associated media if present.
 		if (questToDelete.imagePath && storage) {
 			const imgRef = storageRef(storage, questToDelete.imagePath);
 			try {
@@ -367,7 +464,6 @@ function QuestManagement({ db, storage }) {
 					await uploadBytes(imgRef, editQuestMediaFile);
 					updatedImageUrl = await getDownloadURL(imgRef);
 					if (!updatedImageUrl) throw new Error('Download URL is empty');
-					// Clear video fields if a new image is uploaded.
 					updatedVideoUrl = '';
 					updatedVideoPath = '';
 				} catch (error) {
@@ -393,7 +489,6 @@ function QuestManagement({ db, storage }) {
 					await uploadBytes(vidRef, editQuestMediaFile);
 					updatedVideoUrl = await getDownloadURL(vidRef);
 					if (!updatedVideoUrl) throw new Error('Download URL is empty');
-					// Clear image fields if a new video is uploaded.
 					updatedImageUrl = '';
 					updatedImagePath = '';
 				} catch (error) {
@@ -406,7 +501,6 @@ function QuestManagement({ db, storage }) {
 				}
 			}
 		} else if (shouldDeleteExistingMedia) {
-			// Deletion requested without replacement.
 			if (selectedQuestForEdit.imagePath && storage) {
 				try {
 					const oldImgRef = storageRef(storage, selectedQuestForEdit.imagePath);
@@ -446,6 +540,7 @@ function QuestManagement({ db, storage }) {
 		const effectiveLength = filteredQuests.length + 1;
 		const clampedSeq = Math.max(1, Math.min(newSeq, effectiveLength));
 
+		// ── Update quest data including the new location info ──
 		const updatedQuest = {
 			...selectedQuestForEdit,
 			name: editQuestName,
@@ -457,10 +552,14 @@ function QuestManagement({ db, storage }) {
 			imagePath: updatedImagePath,
 			videoUrl: updatedVideoUrl,
 			videoPath: updatedVideoPath,
+			location: {
+				lat: editQuestLocation.lat,
+				lng: editQuestLocation.lng,
+				fence: editQuestFence,
+			},
 		};
 
 		filteredQuests.splice(clampedSeq - 1, 0, updatedQuest);
-
 		const newOrderedQuests = filteredQuests.map((quest, index) => ({
 			...quest,
 			sequence: index + 1,
@@ -479,10 +578,12 @@ function QuestManagement({ db, storage }) {
 				imagePath: quest.imagePath || '',
 				videoUrl: quest.videoUrl || '',
 				videoPath: quest.videoPath || '',
+				location: quest.location || {},
 			});
 		});
 		await batch.commit();
 
+		// Reset edit state.
 		setSelectedQuestForEdit(null);
 		setEditQuestName('');
 		setEditQuestSequence('');
@@ -555,7 +656,7 @@ function QuestManagement({ db, storage }) {
 
 	return (
 		<div className="min-h-screen h-screen min-w-screen w-screen bg-gray-100 py-20 px-4">
-			{/* Prevent Mobile Access */}
+			{/* Mobile access message */}
 			<div className="sm:hidden flex justify-center items-center min-h-screen text-center">
 				<p className="text-2xl font-bold text-gray-600">
 					🚫 Admin Dashboard is only accessible on a larger screen.
@@ -704,7 +805,7 @@ function QuestManagement({ db, storage }) {
 			{/* Create Modal */}
 			{isCreateModalOpen && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-					<div className="bg-white p-6 rounded-lg shadow-lg">
+					<div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
 						<h3 className="text-lg font-semibold mb-4">Create New Quest</h3>
 						<input
 							type="text"
@@ -739,6 +840,27 @@ function QuestManagement({ db, storage }) {
 							placeholder="Answer"
 							value={newQuestAnswer}
 							onChange={(e) => setNewQuestAnswer(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						{/* ── New location picker section ── */}
+						<div className="mb-4">
+							<label className="block font-semibold mb-2">
+								Pick Quest Location
+							</label>
+							<MapPicker
+								initialLocation={newQuestLocation}
+								initialFence={newQuestFence}
+								onChange={(data) => {
+									setNewQuestLocation({ lat: data.lat, lng: data.lng });
+									setNewQuestFence(data.fence);
+								}}
+							/>
+						</div>
+						<input
+							type="number"
+							placeholder="Fence (in meters)"
+							value={newQuestFence}
+							onChange={(e) => setNewQuestFence(parseInt(e.target.value, 10))}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
 						<div className="mb-4">
@@ -818,7 +940,7 @@ function QuestManagement({ db, storage }) {
 			{/* Edit Modal */}
 			{isEditModalOpen && selectedQuestForEdit && (
 				<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-					<div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+					<div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
 						<h3 className="text-lg font-semibold mb-4">Edit Quest</h3>
 						<input
 							type="text"
@@ -853,6 +975,27 @@ function QuestManagement({ db, storage }) {
 							placeholder="Answer"
 							value={editQuestAnswer}
 							onChange={(e) => setEditQuestAnswer(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						{/* ── New location picker in edit modal ── */}
+						<div className="mb-4">
+							<label className="block font-semibold mb-2">
+								Pick Quest Location
+							</label>
+							<MapPicker
+								initialLocation={editQuestLocation}
+								initialFence={editQuestFence}
+								onChange={(data) => {
+									setEditQuestLocation({ lat: data.lat, lng: data.lng });
+									setEditQuestFence(data.fence);
+								}}
+							/>
+						</div>
+						<input
+							type="number"
+							placeholder="Fence (in meters)"
+							value={editQuestFence}
+							onChange={(e) => setEditQuestFence(parseInt(e.target.value, 10))}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
 						<div className="mb-4">
@@ -1024,6 +1167,15 @@ function QuestManagement({ db, storage }) {
 						<p>
 							<strong>Answer:</strong> {selectedQuestForView.answer}
 						</p>
+						{/* Optionally display location info */}
+						{selectedQuestForView.location && (
+							<p>
+								<strong>Location:</strong>{' '}
+								{selectedQuestForView.location.lat.toFixed(5)},{' '}
+								{selectedQuestForView.location.lng.toFixed(5)} (Fence:{' '}
+								{selectedQuestForView.location.fence} m)
+							</p>
+						)}
 						{selectedQuestForView.imageUrl && (
 							<div className="mt-2">
 								<img
