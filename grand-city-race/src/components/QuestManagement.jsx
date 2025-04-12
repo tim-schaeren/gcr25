@@ -140,9 +140,9 @@ function QuestManagement({ db, storage }) {
 					alert('Only MP4 and MOV videos are allowed');
 					return;
 				}
-				const maxSize = 200 * 1024 * 1024; // 200MB
+				const maxSize = 20 * 1024 * 1024; // 20MB
 				if (file.size > maxSize) {
-					alert('Video file size should be less than 200MB');
+					alert('Video file size should be less than 20MB');
 					return;
 				}
 				setNewQuestMediaFile(file);
