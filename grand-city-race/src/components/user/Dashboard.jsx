@@ -38,11 +38,10 @@ function Dashboard({ user, db }) {
 	const [quest, setQuest] = useState(null);
 	const [currency, setCurrency] = useState(0);
 	const [team, setTeam] = useState(null);
+	const [userName, setUserName] = useState('');
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
-	// New state for current location (for quest activation checking)
 	const [currentLocation, setCurrentLocation] = useState(null);
-	// For full-screen image overlay
 	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
 	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
 
@@ -59,6 +58,7 @@ function Dashboard({ user, db }) {
 				const userSnap = await getDoc(userRef);
 				if (userSnap.exists()) {
 					const userData = userSnap.data();
+					setUserName(userData.name || user.email);
 					if (!userData.teamId) {
 						console.error('User is not assigned to a team.');
 						return;
@@ -302,7 +302,7 @@ function Dashboard({ user, db }) {
 		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
 			<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl">
 				<h2 className="text-2xl font-bold text-center">
-					👋 Welcome, {user?.email}
+					👋 Welcome, {userName}
 				</h2>
 				{team && (
 					<h3 className="text-lg text-gray-400 text-center mt-2">
