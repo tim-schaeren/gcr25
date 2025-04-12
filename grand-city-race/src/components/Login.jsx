@@ -60,7 +60,9 @@ function Login({ auth }) {
 
 		try {
 			await sendPasswordResetEmail(auth, email);
-			setResetMessage('Password reset email sent! Please check your inbox.');
+			setResetMessage(
+				'If you have an account, a reset email has been sent! Please check your inbox.'
+			);
 		} catch (err) {
 			setError(
 				'Failed to send password reset email. Please try again or contact your gamemasters.'
