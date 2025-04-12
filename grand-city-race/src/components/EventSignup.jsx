@@ -242,7 +242,7 @@ function EventSignup({ db }) {
 		}
 	};
 
-	// Updated styling objects
+	// Updated styling objects for an all-black/white theme.
 	const outerContainerStyle = {
 		width: '100vw',
 		minHeight: '100vh',
@@ -251,17 +251,17 @@ function EventSignup({ db }) {
 		alignItems: 'center',
 		backgroundColor: '#000000', // Black background.
 		padding: '0 1.5rem', // Horizontal padding similar to Tailwind's px-6.
-		boxSizing: 'border-box', // Ensures padding doesn't add extra width.
-		fontFamily: "'Poppins', sans-serif", // Custom font; ensure it's loaded.
+		boxSizing: 'border-box',
+		fontFamily: "'Poppins', sans-serif",
 	};
 
 	const containerStyle = {
 		width: '100%',
 		maxWidth: '400px',
-		backgroundColor: '#1F2937', // Dark gray.
+		backgroundColor: '#000000', // Make the container black as well.
 		padding: '20px',
 		borderRadius: '8px',
-		boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+		border: '1px solid #ffffff', // White border for separation.
 		color: '#ffffff',
 	};
 
@@ -278,17 +278,17 @@ function EventSignup({ db }) {
 		padding: '10px',
 		marginBottom: '15px',
 		borderRadius: '4px',
-		border: '1px solid #374151',
+		border: '1px solid #ffffff', // White border.
 		fontSize: '1rem',
-		backgroundColor: '#374151',
+		backgroundColor: '#000000', // Black input background.
 		color: '#ffffff',
 	};
 
 	const buttonStyle = {
 		padding: '10px 20px',
-		border: 'none',
+		border: '1px solid #ffffff', // White border.
 		borderRadius: '4px',
-		backgroundColor: '#3B82F6',
+		backgroundColor: '#000000', // Black button background.
 		color: '#ffffff',
 		cursor: 'pointer',
 		fontSize: '1rem',
@@ -307,7 +307,7 @@ function EventSignup({ db }) {
 		<div style={outerContainerStyle}>
 			<div style={containerStyle}>
 				<h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-					GCR25 - Signup
+					Join the waitlist
 				</h2>
 				{error && <p style={errorStyle}>{error}</p>}
 				<form onSubmit={handleSubmit}>
