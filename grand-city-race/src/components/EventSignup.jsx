@@ -14,7 +14,7 @@ function EventSignup({ db }) {
 	const [passphrase, setPassphrase] = useState('');
 	const [name1, setName1] = useState('');
 	const [email1, setEmail1] = useState('');
-	const [numberOfMembers, setNumberOfMembers] = useState('2'); // Default team size is 2
+	const [numberOfMembers, setNumberOfMembers] = useState('2');
 	const [name2, setName2] = useState('');
 	const [email2, setEmail2] = useState('');
 	const [name3, setName3] = useState('');
@@ -26,12 +26,18 @@ function EventSignup({ db }) {
 	const [animal2, setAnimal2] = useState('');
 	const [animal3, setAnimal3] = useState('');
 
+	// Acknowledgement checkboxes.
+	const [acknowledged, setAcknowledged] = useState(false);
+	const [acknowledged2, setAcknowledged2] = useState(false);
+	const [acknowledged3, setAcknowledged3] = useState(false);
+	const [acknowledged4, setAcknowledged4] = useState(false);
+
 	const [error, setError] = useState('');
 	const [currentStep, setCurrentStep] = useState(0);
 	const navigate = useNavigate();
 	const expectedPassphrase = import.meta.env.VITE_EVENT_PASSPHRASE;
 
-	// Define steps with optional conditions.
+	// Define steps.
 	const stepList = [
 		{ key: 'passphrase' },
 		{ key: 'name1' },
@@ -43,9 +49,10 @@ function EventSignup({ db }) {
 		{ key: 'email3', condition: () => numberOfMembers === '3' },
 		{ key: 'colors' },
 		{ key: 'animals' },
+		{ key: 'acknowledgement' },
 	];
 
-	// Helper functions to skip over steps that have condition false.
+	// Helper functions to get next and previous steps.
 	const getNextStepIndex = (currentIndex) => {
 		let nextIndex = currentIndex + 1;
 		while (
@@ -70,30 +77,25 @@ function EventSignup({ db }) {
 		return prevIndex;
 	};
 
-	// Basic email validation function.
-	const isValidEmail = (email) => {
-		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-	};
+	// Email validation.
+	const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-	// Prevent Enter key from submitting the form unless on the final step.
 	const handleKeyDown = (e) => {
 		if (e.key === 'Enter' && currentStep !== stepList.length - 1) {
 			e.preventDefault();
 		}
 	};
 
-	// Asynchronous handler for going to the next step.
+	// Move to the next step.
 	const handleNext = async () => {
 		setError('');
 		const currentKey = stepList[currentStep].key;
 
-		// Immediate check for passphrase.
 		if (currentKey === 'passphrase' && passphrase !== expectedPassphrase) {
 			setError('Invalid passphrase - please try again.');
 			return;
 		}
 
-		// Validate name fields.
 		if (currentKey === 'name1' && name1.trim() === '') {
 			setError('Please enter your name.');
 			return;
@@ -107,13 +109,11 @@ function EventSignup({ db }) {
 			return;
 		}
 
-		// Validate email fields.
 		if (currentKey === 'email1') {
 			if (!email1 || !isValidEmail(email1)) {
 				setError('Please enter a valid email address for your email.');
 				return;
 			}
-			// Check duplicates for email1 across all email fields.
 			const q1 = query(
 				collection(db, 'eventSignups'),
 				where('email1', '==', email1)
@@ -138,7 +138,6 @@ function EventSignup({ db }) {
 				return;
 			}
 		}
-
 		if (currentKey === 'email2') {
 			if (!email2 || !isValidEmail(email2)) {
 				setError('Please enter a valid email address for teammate 1.');
@@ -168,7 +167,6 @@ function EventSignup({ db }) {
 				return;
 			}
 		}
-
 		if (currentKey === 'email3') {
 			if (!email3 || !isValidEmail(email3)) {
 				setError('Please enter a valid email address for teammate 2.');
@@ -209,11 +207,14 @@ function EventSignup({ db }) {
 		setCurrentStep(prevIndex);
 	};
 
-	// Submission handler.
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		if (passphrase !== expectedPassphrase) {
 			setError('Invalid passphrase - please try again.');
+			return;
+		}
+		if (!acknowledged || !acknowledged2 || !acknowledged3 || !acknowledged4) {
+			setError('Please agree to all conditions before submitting.');
 			return;
 		}
 		try {
@@ -241,291 +242,393 @@ function EventSignup({ db }) {
 		}
 	};
 
-	// Styling.
+	// Updated styling objects
+	const outerContainerStyle = {
+		width: '100vw',
+		minHeight: '100vh',
+		display: 'flex',
+		justifyContent: 'center',
+		alignItems: 'center',
+		backgroundColor: '#000000', // Black background.
+		padding: '0 1.5rem', // Horizontal padding similar to Tailwind's px-6.
+		boxSizing: 'border-box', // Ensures padding doesn't add extra width.
+		fontFamily: "'Poppins', sans-serif", // Custom font; ensure it's loaded.
+	};
+
 	const containerStyle = {
+		width: '100%',
 		maxWidth: '400px',
-		margin: '50px auto',
+		backgroundColor: '#1F2937', // Dark gray.
 		padding: '20px',
 		borderRadius: '8px',
-		boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-		backgroundColor: '#ffffff',
-		fontFamily: 'Arial, sans-serif',
+		boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+		color: '#ffffff',
 	};
 
 	const labelStyle = {
 		display: 'block',
 		marginBottom: '8px',
-		fontWeight: 'bold',
+		fontWeight: '600',
 		fontSize: '1rem',
+		color: '#ffffff',
 	};
 
 	const inputStyle = {
 		width: '100%',
 		padding: '10px',
-		marginBottom: '20px',
+		marginBottom: '15px',
 		borderRadius: '4px',
-		border: '1px solid #ccc',
+		border: '1px solid #374151',
 		fontSize: '1rem',
+		backgroundColor: '#374151',
+		color: '#ffffff',
 	};
 
 	const buttonStyle = {
 		padding: '10px 20px',
 		border: 'none',
 		borderRadius: '4px',
-		backgroundColor: '#007BFF',
-		color: '#fff',
+		backgroundColor: '#3B82F6',
+		color: '#ffffff',
 		cursor: 'pointer',
 		fontSize: '1rem',
 		marginRight: '10px',
 	};
 
-	// Determine current step key.
+	const errorStyle = {
+		color: '#FFFF00', // Neon yellow for error messages.
+		textAlign: 'center',
+		marginBottom: '20px',
+	};
+
 	const currentStepKey = stepList[currentStep]?.key;
 
 	return (
-		<div style={containerStyle}>
-			<h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-				GCR25 - Signup
-			</h2>
-			{error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
-			<form onSubmit={handleSubmit}>
-				{/* Step 0: Passphrase */}
-				{currentStepKey === 'passphrase' && (
-					<div>
-						<label style={labelStyle}>Passphrase:</label>
-						<input
-							type="password"
-							value={passphrase}
-							onChange={(e) => setPassphrase(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
+		<div style={outerContainerStyle}>
+			<div style={containerStyle}>
+				<h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
+					GCR25 - Signup
+				</h2>
+				{error && <p style={errorStyle}>{error}</p>}
+				<form onSubmit={handleSubmit}>
+					{/* Step 0: Passphrase */}
+					{currentStepKey === 'passphrase' && (
+						<div>
+							<label style={labelStyle}>Passphrase:</label>
+							<input
+								type="password"
+								value={passphrase}
+								onChange={(e) => setPassphrase(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
 
-				{/* Step 1: Leader’s Name */}
-				{currentStepKey === 'name1' && (
-					<div>
-						<label style={labelStyle}>Your Name:</label>
-						<input
-							type="text"
-							value={name1}
-							onChange={(e) => setName1(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
+					{/* Step 1: Leader’s Name */}
+					{currentStepKey === 'name1' && (
+						<div>
+							<label style={labelStyle}>Your Name:</label>
+							<input
+								type="text"
+								value={name1}
+								onChange={(e) => setName1(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
 
-				{/* Step 2: Leader’s Email */}
-				{currentStepKey === 'email1' && (
-					<div>
-						<label style={labelStyle}>Your E-Mail Address:</label>
-						<input
-							type="email"
-							value={email1}
-							onChange={(e) => setEmail1(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
+					{/* Step 2: Leader’s Email */}
+					{currentStepKey === 'email1' && (
+						<div>
+							<label style={labelStyle}>Your E-Mail Address:</label>
+							<input
+								type="email"
+								value={email1}
+								onChange={(e) => setEmail1(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
 
-				{/* Step 3: Team Size (using radio buttons) */}
-				{currentStepKey === 'numberOfMembers' && (
-					<div>
-						<p style={labelStyle}>
-							How many players, including you, are in your team?
-						</p>
-						<div style={{ marginBottom: '20px' }}>
-							<label style={{ marginRight: '10px' }}>
-								<input
-									type="radio"
-									name="teamSize"
-									value="2"
-									checked={numberOfMembers === '2'}
-									onChange={(e) => setNumberOfMembers(e.target.value)}
-									required
-								/>{' '}
-								2
+					{/* Step 3: Team Size */}
+					{currentStepKey === 'numberOfMembers' && (
+						<div>
+							<p style={labelStyle}>
+								How many players, including you, are in your team?
+							</p>
+							<div style={{ marginBottom: '20px' }}>
+								<label style={{ marginRight: '10px', color: '#ffffff' }}>
+									<input
+										type="radio"
+										name="teamSize"
+										value="2"
+										checked={numberOfMembers === '2'}
+										onChange={(e) => setNumberOfMembers(e.target.value)}
+										required
+									/>{' '}
+									2
+								</label>
+								<label style={{ color: '#ffffff' }}>
+									<input
+										type="radio"
+										name="teamSize"
+										value="3"
+										checked={numberOfMembers === '3'}
+										onChange={(e) => setNumberOfMembers(e.target.value)}
+										required
+									/>{' '}
+									3
+								</label>
+							</div>
+						</div>
+					)}
+
+					{/* Step 4: Teammate 1 Name */}
+					{currentStepKey === 'name2' && (
+						<div>
+							<label style={labelStyle}>The name of your team-mate:</label>
+							<input
+								type="text"
+								value={name2}
+								onChange={(e) => setName2(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
+
+					{/* Step 5: Teammate 1 Email */}
+					{currentStepKey === 'email2' && (
+						<div>
+							<label style={labelStyle}>
+								The E-Mail Address of your team-mate:
 							</label>
-							<label>
+							<input
+								type="email"
+								value={email2}
+								onChange={(e) => setEmail2(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
+
+					{/* Step 6: Teammate 2 Name */}
+					{currentStepKey === 'name3' && (
+						<div>
+							<label style={labelStyle}>
+								The name of your second team-mate:
+							</label>
+							<input
+								type="text"
+								value={name3}
+								onChange={(e) => setName3(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
+
+					{/* Step 7: Teammate 2 Email */}
+					{currentStepKey === 'email3' && (
+						<div>
+							<label style={labelStyle}>
+								The E-Mail Address of your second team-mate:
+							</label>
+							<input
+								type="email"
+								value={email3}
+								onChange={(e) => setEmail3(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								required
+							/>
+						</div>
+					)}
+
+					{/* Step 8: Group Colors */}
+					{currentStepKey === 'colors' && (
+						<div>
+							<h3
+								style={{
+									textAlign: 'center',
+									marginBottom: '20px',
+									color: '#ffffff',
+								}}
+							>
+								Your team's favourite colors
+							</h3>
+							<label style={labelStyle}>Color 1:</label>
+							<input
+								type="text"
+								value={color1}
+								onChange={(e) => setColor1(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								placeholder="e.g., Bright-Blue"
+								required
+							/>
+							<label style={labelStyle}>Color 2:</label>
+							<input
+								type="text"
+								value={color2}
+								onChange={(e) => setColor2(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								placeholder="e.g., Dark-Green"
+								required
+							/>
+							<label style={labelStyle}>Color 3:</label>
+							<input
+								type="text"
+								value={color3}
+								onChange={(e) => setColor3(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								placeholder="e.g., Pink"
+								required
+							/>
+						</div>
+					)}
+
+					{/* Step 9: Group Animals */}
+					{currentStepKey === 'animals' && (
+						<div>
+							<h3
+								style={{
+									textAlign: 'center',
+									marginBottom: '20px',
+									color: '#ffffff',
+								}}
+							>
+								Your team's favourite animals
+							</h3>
+							<label style={labelStyle}>Animal 1:</label>
+							<input
+								type="text"
+								value={animal1}
+								onChange={(e) => setAnimal1(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								placeholder="e.g., Dolphin"
+								required
+							/>
+							<label style={labelStyle}>Animal 2:</label>
+							<input
+								type="text"
+								value={animal2}
+								onChange={(e) => setAnimal2(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								placeholder="e.g., Axolotl"
+								required
+							/>
+							<label style={labelStyle}>Animal 3:</label>
+							<input
+								type="text"
+								value={animal3}
+								onChange={(e) => setAnimal3(e.target.value)}
+								onKeyDown={handleKeyDown}
+								style={inputStyle}
+								placeholder="e.g., Tiger"
+								required
+							/>
+						</div>
+					)}
+
+					{/* Step 10: Acknowledgement Checkboxes */}
+					{currentStepKey === 'acknowledgement' && (
+						<div>
+							<h3
+								style={{
+									textAlign: 'center',
+									marginBottom: '20px',
+									color: '#ffffff',
+								}}
+							>
+								Acknowledgements
+							</h3>
+							<label style={{ ...labelStyle, fontWeight: 'normal' }}>
 								<input
-									type="radio"
-									name="teamSize"
-									value="3"
-									checked={numberOfMembers === '3'}
-									onChange={(e) => setNumberOfMembers(e.target.value)}
+									type="checkbox"
+									checked={acknowledged}
+									onChange={(e) => setAcknowledged(e.target.checked)}
+									style={{ marginRight: '10px' }}
 									required
-								/>{' '}
-								3
+								/>
+								I understand my team needs at least one smartphone running iOS
+								or Android available on the day of the race. This phone needs to
+								have a Chrome or Safari browser installed on it. I understand my
+								team cannot participate otherwise.
+							</label>
+							<label style={{ ...labelStyle, fontWeight: 'normal' }}>
+								<input
+									type="checkbox"
+									checked={acknowledged2}
+									onChange={(e) => setAcknowledged2(e.target.checked)}
+									style={{ marginRight: '10px' }}
+									required
+								/>
+								I understand that taking part in GCR25 will cost each player of
+								my team CHF 20.-, payable on the morning of the race.
+							</label>
+							<label style={{ ...labelStyle, fontWeight: 'normal' }}>
+								<input
+									type="checkbox"
+									checked={acknowledged3}
+									onChange={(e) => setAcknowledged3(e.target.checked)}
+									style={{ marginRight: '10px' }}
+									required
+								/>
+								I pledge to adhere to fairplay and respect the rules of the game
+								to the best of my ability. I am responsible for communicating
+								this to my team. I understand that the gamemasters of GCR25
+								reserve the right to disqualify my team from the game if they
+								deem we have broken the rules.
+							</label>
+							<label style={{ ...labelStyle, fontWeight: 'normal' }}>
+								<input
+									type="checkbox"
+									checked={acknowledged4}
+									onChange={(e) => setAcknowledged4(e.target.checked)}
+									style={{ marginRight: '10px' }}
+									required
+								/>
+								I understand that this registration is NOT a confirmation that
+								my team will definitely be allowed to play. I am joining a
+								wait-list. The gamemasters will do their best to accommodate my
+								team.
 							</label>
 						</div>
-					</div>
-				)}
-
-				{/* Step 4: Teammate 1 Name */}
-				{currentStepKey === 'name2' && (
-					<div>
-						<label style={labelStyle}>The name of your team-mate:</label>
-						<input
-							type="text"
-							value={name2}
-							onChange={(e) => setName2(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
-
-				{/* Step 5: Teammate 1 Email */}
-				{currentStepKey === 'email2' && (
-					<div>
-						<label style={labelStyle}>
-							The E-Mail Address of your team-mate:
-						</label>
-						<input
-							type="email"
-							value={email2}
-							onChange={(e) => setEmail2(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
-
-				{/* Step 6: Teammate 2 Name (conditional) */}
-				{currentStepKey === 'name3' && (
-					<div>
-						<label style={labelStyle}>The name of your second team-mate:</label>
-						<input
-							type="text"
-							value={name3}
-							onChange={(e) => setName3(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
-
-				{/* Step 7: Teammate 2 Email (conditional) */}
-				{currentStepKey === 'email3' && (
-					<div>
-						<label style={labelStyle}>
-							The E-Mail Address of your second team-mate:
-						</label>
-						<input
-							type="email"
-							value={email3}
-							onChange={(e) => setEmail3(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							required
-						/>
-					</div>
-				)}
-
-				{/* Step 8: Group Colors */}
-				{currentStepKey === 'colors' && (
-					<div>
-						<h3 style={{ textAlign: 'center', marginBottom: '20px' }}>
-							Your team's favourite colors
-						</h3>
-						<label style={labelStyle}>Color 1:</label>
-						<input
-							type="text"
-							value={color1}
-							onChange={(e) => setColor1(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							placeholder="e.g., Bright-Blue"
-							required
-						/>
-						<label style={labelStyle}>Color 2:</label>
-						<input
-							type="text"
-							value={color2}
-							onChange={(e) => setColor2(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							placeholder="e.g., Dark-Green"
-							required
-						/>
-						<label style={labelStyle}>Color 3:</label>
-						<input
-							type="text"
-							value={color3}
-							onChange={(e) => setColor3(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							placeholder="e.g., Pink"
-							required
-						/>
-					</div>
-				)}
-
-				{/* Step 9: Group Animals */}
-				{currentStepKey === 'animals' && (
-					<div>
-						<h3 style={{ textAlign: 'center', marginBottom: '20px' }}>
-							Your team's favourite animals
-						</h3>
-						<label style={labelStyle}>Animal 1:</label>
-						<input
-							type="text"
-							value={animal1}
-							onChange={(e) => setAnimal1(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							placeholder="e.g., Dolphin"
-							required
-						/>
-						<label style={labelStyle}>Animal 2:</label>
-						<input
-							type="text"
-							value={animal2}
-							onChange={(e) => setAnimal2(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							placeholder="e.g., Axolotl"
-							required
-						/>
-						<label style={labelStyle}>Animal 3:</label>
-						<input
-							type="text"
-							value={animal3}
-							onChange={(e) => setAnimal3(e.target.value)}
-							onKeyDown={handleKeyDown}
-							style={inputStyle}
-							placeholder="e.g., Tiger"
-							required
-						/>
-					</div>
-				)}
-
-				<div style={{ textAlign: 'center' }}>
-					{currentStep > 0 && (
-						<button type="button" onClick={handleBack} style={buttonStyle}>
-							Back
-						</button>
 					)}
-					{currentStep === stepList.length - 1 ? (
-						<button type="submit" style={buttonStyle}>
-							Submit Registration
-						</button>
-					) : (
-						<button type="button" onClick={handleNext} style={buttonStyle}>
-							Next
-						</button>
-					)}
-				</div>
-			</form>
+
+					<div style={{ textAlign: 'center' }}>
+						{currentStep > 0 && (
+							<button type="button" onClick={handleBack} style={buttonStyle}>
+								Back
+							</button>
+						)}
+						{currentStep === stepList.length - 1 ? (
+							<button type="submit" style={buttonStyle}>
+								Submit Registration
+							</button>
+						) : (
+							<button type="button" onClick={handleNext} style={buttonStyle}>
+								Next
+							</button>
+						)}
+					</div>
+				</form>
+			</div>
 		</div>
 	);
 }

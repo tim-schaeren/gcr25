@@ -89,8 +89,33 @@ function App() {
 				<Route path="/event-signup" element={<EventSignup db={db} />} />
 				<Route
 					path="/thank-you"
-					element={<div>Thank you for signing up - We will be in touch.</div>}
+					element={
+						<div
+							style={{
+								width: '100vw',
+								minHeight: '100vh',
+								backgroundColor: '#000000',
+								color: '#ffffff',
+								display: 'flex',
+								justifyContent: 'center',
+								alignItems: 'center',
+								fontFamily: "'Poppins', sans-serif",
+								padding: '0 1.5rem',
+								boxSizing: 'border-box',
+								textAlign: 'center',
+							}}
+						>
+							Thank you for joining the waitlist.
+							<br />
+							We will be in touch.
+							<br />
+							<br />
+							<br />
+							GCR 25
+						</div>
+					}
 				/>
+
 				<Route
 					path="/dashboard"
 					element={
