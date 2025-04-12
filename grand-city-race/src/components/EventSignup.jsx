@@ -92,7 +92,7 @@ function EventSignup({ db }) {
 		const currentKey = stepList[currentStep].key;
 
 		if (currentKey === 'passphrase' && passphrase !== expectedPassphrase) {
-			setError('Invalid passphrase - please try again.');
+			setError('Invalid passphrase');
 			return;
 		}
 
@@ -101,17 +101,17 @@ function EventSignup({ db }) {
 			return;
 		}
 		if (currentKey === 'name2' && name2.trim() === '') {
-			setError('Please enter teammate 1 name.');
+			setError('Please enter your teammates name.');
 			return;
 		}
 		if (currentKey === 'name3' && name3.trim() === '') {
-			setError('Please enter teammate 2 name.');
+			setError('Please enter your teammates name.');
 			return;
 		}
 
 		if (currentKey === 'email1') {
 			if (!email1 || !isValidEmail(email1)) {
-				setError('Please enter a valid email address for your email.');
+				setError('Please enter a valid email address.');
 				return;
 			}
 			const q1 = query(
@@ -133,14 +133,14 @@ function EventSignup({ db }) {
 			]);
 			if (!snap1.empty || !snap2.empty || !snap3.empty) {
 				setError(
-					`The email address ${email1} is already registered. Please use a different email.`
+					`The email address ${email1} is already on the waitlist. Please use a different email.`
 				);
 				return;
 			}
 		}
 		if (currentKey === 'email2') {
 			if (!email2 || !isValidEmail(email2)) {
-				setError('Please enter a valid email address for teammate 1.');
+				setError('Please enter a valid email address.');
 				return;
 			}
 			const q1 = query(
@@ -162,14 +162,14 @@ function EventSignup({ db }) {
 			]);
 			if (!snap1.empty || !snap2.empty || !snap3.empty) {
 				setError(
-					`The email address ${email2} is already registered. Please use a different email.`
+					`The email address ${email2} is already on the waitlist. Please use a different email.`
 				);
 				return;
 			}
 		}
 		if (currentKey === 'email3') {
 			if (!email3 || !isValidEmail(email3)) {
-				setError('Please enter a valid email address for teammate 2.');
+				setError('Please enter a valid email address.');
 				return;
 			}
 			const q1 = query(
@@ -210,7 +210,7 @@ function EventSignup({ db }) {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		if (passphrase !== expectedPassphrase) {
-			setError('Invalid passphrase - please try again.');
+			setError('Invalid passphrase.');
 			return;
 		}
 		if (!acknowledged || !acknowledged2 || !acknowledged3 || !acknowledged4) {
@@ -271,6 +271,7 @@ function EventSignup({ db }) {
 		fontWeight: '600',
 		fontSize: '1rem',
 		color: '#ffffff',
+		textAlign: 'center',
 	};
 
 	const inputStyle = {
@@ -306,9 +307,8 @@ function EventSignup({ db }) {
 	return (
 		<div style={outerContainerStyle}>
 			<div style={containerStyle}>
-				<h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-					Join the waitlist
-				</h2>
+				<h2 style={labelStyle}>Join the waitlist</h2>
+				<br />
 				{error && <p style={errorStyle}>{error}</p>}
 				<form onSubmit={handleSubmit}>
 					{/* Step 0: Passphrase */}
