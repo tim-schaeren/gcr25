@@ -177,7 +177,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 				onUsed();
 			}
 			setTimeout(() => {
-				onClose();
+				navigate('/dashboard');
 			}, 5000);
 		} else {
 			setArrivalMessage('');

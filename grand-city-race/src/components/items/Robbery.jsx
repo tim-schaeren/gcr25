@@ -11,11 +11,7 @@ const Robbery = ({ team, selectedItem, db, onClose, targetCoords }) => {
 	const [availableTeams, setAvailableTeams] = useState([]);
 	const [localError, setLocalError] = useState('');
 	const [isProcessing, setIsProcessing] = useState(false);
-	const [animate, setAnimate] = useState(false);
 	const stealAmount = selectedItem.stealAmount;
-
-	// Use fallback coordinates if targetCoords is not provided.
-	const effectiveTargetCoords = targetCoords || { x: 150, y: -50 };
 
 	// Fetch eligible teams (all teams except the user's team and those with insufficient currency)
 	useEffect(() => {
@@ -39,15 +35,6 @@ const Robbery = ({ team, selectedItem, db, onClose, targetCoords }) => {
 		fetchEligibleTeams();
 	}, [db, team, stealAmount]);
 
-	// Trigger the animation and then close the modal
-	const triggerAnimationAndClose = () => {
-		setAnimate(true);
-		// After the animation duration (1s here), close the modal
-		setTimeout(() => {
-			onClose();
-		}, 1000);
-	};
-
 	// Claim bonus if no eligible teams exist.
 	const handleBonusClaim = async () => {
 		setIsProcessing(true);
@@ -68,7 +55,7 @@ const Robbery = ({ team, selectedItem, db, onClose, targetCoords }) => {
 				inventory: inventory,
 				activeItem: null,
 			});
-			triggerAnimationAndClose();
+			onClose();
 		} catch (error) {
 			setLocalError('Failed to process bonus.');
 			console.error(error);
@@ -107,7 +94,7 @@ const Robbery = ({ team, selectedItem, db, onClose, targetCoords }) => {
 				inventory: inventory,
 				activeItem: null,
 			});
-			triggerAnimationAndClose();
+			onClose();
 		} catch (error) {
 			setLocalError('Failed to process robbery.');
 			console.error(error);
