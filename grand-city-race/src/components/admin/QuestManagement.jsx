@@ -1,13 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-	collection,
-	onSnapshot,
-	addDoc,
-	doc,
-	updateDoc,
-	deleteDoc,
-	writeBatch,
-} from 'firebase/firestore';
+import { collection, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import {
 	DndContext,
@@ -23,8 +15,6 @@ import {
 	useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import {
 	ref as storageRef,
 	uploadBytes,
