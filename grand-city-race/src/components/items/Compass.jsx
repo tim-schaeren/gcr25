@@ -107,17 +107,42 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 	// Set up a device orientation listener if available.
 	useEffect(() => {
 		const handleOrientation = (event) => {
-			// event.alpha gives the compass heading relative to north (if available)
-			if (event.absolute === true || event.absolute === false) {
-				// Some browsers provide event.webkitCompassHeading instead.
-				const heading = event.alpha || event.webkitCompassHeading || 0;
-				setDeviceHeading(heading);
-			}
+			// event.alpha gives the orientation relative to north.
+			const heading = event.alpha || event.webkitCompassHeading || 0;
+			setDeviceHeading(heading);
 		};
 
-		window.addEventListener('deviceorientation', handleOrientation, true);
-		return () =>
+		// Check if permission is required (iOS 13+)
+		if (
+			typeof DeviceOrientationEvent !== 'undefined' &&
+			typeof DeviceOrientationEvent.requestPermission === 'function'
+		) {
+			DeviceOrientationEvent.requestPermission()
+				.then((response) => {
+					if (response === 'granted') {
+						window.addEventListener(
+							'deviceorientation',
+							handleOrientation,
+							true
+						);
+					} else {
+						console.warn('Device orientation permission denied');
+					}
+				})
+				.catch((error) =>
+					console.error(
+						'Error requesting device orientation permission:',
+						error
+					)
+				);
+		} else {
+			// For browsers that don't require permission
+			window.addEventListener('deviceorientation', handleOrientation, true);
+		}
+
+		return () => {
 			window.removeEventListener('deviceorientation', handleOrientation);
+		};
 	}, []);
 
 	// Compute the needle rotation and distance whenever userLocation, targetQuest, or deviceHeading changes.
