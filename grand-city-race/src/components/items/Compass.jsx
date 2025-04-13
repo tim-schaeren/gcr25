@@ -47,18 +47,15 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 	const [needleRotation, setNeedleRotation] = useState(0);
 	const [distance, setDistance] = useState(null);
 	const [arrivalMessage, setArrivalMessage] = useState('');
-
+	// New state to flag if user manually closed the compass.
+	const [manualExit, setManualExit] = useState(false);
 	// Ref to store the previous rotation (for smoothing transitions)
 	const prevRotationRef = useRef(null);
 
 	// Fetch the target quest (next quest to activate) unless a quest is active.
 	useEffect(() => {
 		const fetchNextQuest = async () => {
-			// If an active quest exists, exit.
-			if (team.progress && team.progress.currentQuest) {
-				return;
-			}
-
+			if (team.progress && team.progress.currentQuest) return;
 			let nextSequence = 1;
 			if (
 				team.progress &&
@@ -137,13 +134,12 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		} else {
 			window.addEventListener('deviceorientation', handleOrientation, true);
 		}
-
 		return () => {
 			window.removeEventListener('deviceorientation', handleOrientation);
 		};
 	}, []);
 
-	// Compute needle rotation and distance.
+	// Compute the needle rotation and distance.
 	useEffect(() => {
 		if (!userLocation || !targetQuest) return;
 		const bearing = calculateBearing(
@@ -154,8 +150,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		);
 		const rawRotation = deviceHeading - bearing;
 		let newRotation = ((rawRotation % 360) + 360) % 360;
-
-		// Smoothing: adjust the rotation if the jump is large.
+		// Smoothing: adjust if the jump is large.
 		if (prevRotationRef.current !== null) {
 			let diff = newRotation - prevRotationRef.current;
 			if (diff > 180) {
@@ -175,11 +170,11 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		);
 		setDistance(dist);
 
-		if (dist <= targetQuest.location.fence - 5) {
+		// If the user is within the fence (with a 5m buffer) and hasn't manually exited.
+		if (dist <= targetQuest.location.fence - 5 && !manualExit) {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
 			);
-			// Mark the item as used and then close the compass.
 			if (typeof onUsed === 'function') {
 				onUsed();
 			}
@@ -189,29 +184,9 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		} else {
 			setArrivalMessage('');
 		}
-	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed]);
+	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed, manualExit]);
 
-	// Render nothing if no targetQuest or if an active quest exists.
-	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
-		return (
-			<div className="relative flex flex-col items-center">
-				{/* Close button (X) in top-right */}
-				<button
-					className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
-					onClick={() => {
-						onClose();
-					}}
-				>
-					✕
-				</button>
-				<div className="p-4 text-center">
-					<p>Compass not available – You already have an active quest.</p>
-				</div>
-			</div>
-		);
-	}
-
-	// **Additional Check:** Render nothing if the user is already inside the quest's fence.
+	// Extra render-time check: if the user is already inside the target quest's fence.
 	if (
 		userLocation &&
 		targetQuest &&
@@ -223,29 +198,28 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		) <= targetQuest.location.fence
 	) {
 		return (
-			<div className="relative flex flex-col items-center">
-				{/* Close button (X) in top-right */}
-				<button
-					className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
-					onClick={() => {
-						onClose();
-					}}
-				>
-					✕
-				</button>
-				<div className="p-4 text-center">
-					<p>Compass not available – You are already at a quest-location.</p>
-				</div>
+			<div className="p-4 text-center">
+				<p>Compass not available – You are already at a quest-location.</p>
+			</div>
+		);
+	}
+
+	// Also, if no targetQuest or if a quest is active, do not render the compass.
+	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
+		return (
+			<div className="p-4 text-center">
+				<p>Compass not available – You already have an active quest.</p>
 			</div>
 		);
 	}
 
 	return (
 		<div className="relative flex flex-col items-center">
-			{/* Close button (X) in top-right */}
+			{/* X Button (manual close) does NOT call onUsed */}
 			<button
 				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
 				onClick={() => {
+					setManualExit(true);
 					onClose();
 				}}
 			>

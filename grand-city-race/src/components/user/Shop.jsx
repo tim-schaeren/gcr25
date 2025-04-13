@@ -1,265 +1,267 @@
-import React, { useState, useEffect, useRef } from 'react';
-import compassBase from '../../assets/compass_base.png';
-import compassNeedle from '../../assets/compass_needle.png';
+import React, { useEffect, useState } from 'react';
+import Robbery from '../items/Robbery';
+import Compass from '../items/Compass';
+import DefaultItem from '../items/DefaultItem';
+
 import {
 	collection,
 	getDocs,
 	doc,
 	getDoc,
-	query,
-	where,
+	updateDoc,
+	onSnapshot,
 } from 'firebase/firestore';
 
-// Helper function to compute bearing in degrees from one lat/lng to another.
-function calculateBearing(lat1, lon1, lat2, lon2) {
-	const toRadians = (deg) => (deg * Math.PI) / 180;
-	const toDegrees = (rad) => (rad * 180) / Math.PI;
-	const dLon = toRadians(lon2 - lon1);
-	const φ1 = toRadians(lat1);
-	const φ2 = toRadians(lat2);
-	const y = Math.sin(dLon) * Math.cos(φ2);
-	const x =
-		Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLon);
-	let brng = Math.atan2(y, x);
-	brng = toDegrees(brng);
-	return (brng + 360) % 360;
-}
+function Shop({ user, db }) {
+	// Shop state variables
+	const [items, setItems] = useState([]);
+	const [currency, setCurrency] = useState(0);
+	const [team, setTeam] = useState(null);
+	const [error, setError] = useState(null);
+	const [activeMessage, setActiveMessage] = useState('');
+	const [showItemModal, setShowItemModal] = useState(false);
+	const [selectedItem, setSelectedItem] = useState(null);
 
-// Helper function to calculate the distance (in meters) between two lat/lng coordinates.
-function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-	const R = 6371000; // Earth radius in meters
-	const toRadians = (deg) => (deg * Math.PI) / 180;
-	const dLat = toRadians(lat2 - lat1);
-	const dLon = toRadians(lon2 - lon1);
-	const a =
-		Math.sin(dLat / 2) ** 2 +
-		Math.cos(toRadians(lat1)) *
-			Math.cos(toRadians(lat2)) *
-			Math.sin(dLon / 2) ** 2;
-	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	return R * c;
-}
-
-const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
-	const [targetQuest, setTargetQuest] = useState(null);
-	const [userLocation, setUserLocation] = useState(null);
-	const [deviceHeading, setDeviceHeading] = useState(0);
-	const [needleRotation, setNeedleRotation] = useState(0);
-	const [distance, setDistance] = useState(null);
-	const [arrivalMessage, setArrivalMessage] = useState('');
-	// New state to flag if user manually closed the compass.
-	const [manualExit, setManualExit] = useState(false);
-	// Ref to store the previous rotation (for smoothing transitions)
-	const prevRotationRef = useRef(null);
-
-	// Fetch the target quest (next quest to activate) unless a quest is active.
+	// Real-time listener for team data (inventory, currency, activeItem)
 	useEffect(() => {
-		const fetchNextQuest = async () => {
-			if (team.progress && team.progress.currentQuest) return;
-			let nextSequence = 1;
-			if (
-				team.progress &&
-				team.progress.previousQuests &&
-				team.progress.previousQuests.length > 0
-			) {
-				const lastQuestId =
-					team.progress.previousQuests[team.progress.previousQuests.length - 1];
-				const lastQuestRef = doc(db, 'quests', lastQuestId);
-				const lastQuestSnap = await getDoc(lastQuestRef);
-				if (lastQuestSnap.exists()) {
-					const lastQuestData = lastQuestSnap.data();
-					nextSequence = lastQuestData.sequence + 1;
+		if (!user) return;
+
+		const fetchTeamRealTime = async () => {
+			try {
+				const userRef = doc(db, 'users', user.uid);
+				const userSnap = await getDoc(userRef);
+				if (!userSnap.exists()) return;
+				const userData = userSnap.data();
+				if (!userData.teamId) {
+					console.error('User is not assigned to a team.');
+					return;
 				}
-			}
-			const questsRef = collection(db, 'quests');
-			const qNext = query(questsRef, where('sequence', '==', nextSequence));
-			const nextSnap = await getDocs(qNext);
-			if (!nextSnap.empty) {
-				const questDoc = nextSnap.docs[0];
-				setTargetQuest({ id: questDoc.id, ...questDoc.data() });
+				const teamRef = doc(db, 'teams', userData.teamId);
+				const unsubscribeTeam = onSnapshot(teamRef, (snapshot) => {
+					const teamData = snapshot.data();
+					setTeam({ id: userData.teamId, ...teamData });
+					setCurrency(teamData.currency || 0);
+				});
+				return unsubscribeTeam;
+			} catch (err) {
+				setError('Error fetching user data.');
+				console.error(err);
 			}
 		};
-		fetchNextQuest();
-	}, [team, db]);
 
-	// Set up geolocation watcher.
+		fetchTeamRealTime();
+	}, [user, db]);
+
+	// Fetch shop items (one-time fetch)
 	useEffect(() => {
-		if (!navigator.geolocation) {
-			console.error('Geolocation is not supported by this browser.');
+		const fetchItems = async () => {
+			try {
+				const querySnapshot = await getDocs(collection(db, 'items'));
+				const shopItems = querySnapshot.docs.map((doc) => ({
+					id: doc.id,
+					...doc.data(),
+				}));
+				setItems(shopItems);
+			} catch (err) {
+				setError('Error fetching shop items.');
+				console.error('Firestore error:', err);
+			}
+		};
+
+		fetchItems();
+	}, [db]);
+
+	// Purchase an item: subtract cost and add one to inventory.
+	const handlePurchase = async (item) => {
+		if (!team) {
+			setError('No team found!');
+			setTimeout(() => setError(''), 3000);
 			return;
 		}
-		const watchId = navigator.geolocation.watchPosition(
-			(position) => {
-				const loc = {
-					lat: position.coords.latitude,
-					lng: position.coords.longitude,
-				};
-				setUserLocation(loc);
-			},
-			(error) => console.error('Error watching position:', error),
-			{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-		);
-		return () => navigator.geolocation.clearWatch(watchId);
-	}, []);
-
-	// Set up device orientation listener.
-	useEffect(() => {
-		const handleOrientation = (event) => {
-			const heading = event.alpha || event.webkitCompassHeading || 0;
-			setDeviceHeading(heading);
-		};
-
-		if (
-			typeof DeviceOrientationEvent !== 'undefined' &&
-			typeof DeviceOrientationEvent.requestPermission === 'function'
-		) {
-			DeviceOrientationEvent.requestPermission()
-				.then((response) => {
-					if (response === 'granted') {
-						window.addEventListener(
-							'deviceorientation',
-							handleOrientation,
-							true
-						);
-					} else {
-						console.warn('Device orientation permission denied');
-					}
-				})
-				.catch((error) =>
-					console.error(
-						'Error requesting device orientation permission:',
-						error
-					)
-				);
-		} else {
-			window.addEventListener('deviceorientation', handleOrientation, true);
+		if (currency < item.price) {
+			setError('Not enough team currency!');
+			setTimeout(() => setError(''), 3000);
+			return;
 		}
-		return () => {
-			window.removeEventListener('deviceorientation', handleOrientation);
-		};
-	}, []);
+		try {
+			const teamRef = doc(db, 'teams', team.id);
+			const teamSnap = await getDoc(teamRef);
+			if (!teamSnap.exists()) {
+				setError('Team data not found.');
+				setTimeout(() => setError(''), 3000);
+				return;
+			}
+			const teamData = teamSnap.data();
+			const updatedCurrency = teamData.currency - item.price;
+			const inventory = teamData.inventory || {};
+			inventory[item.id] = (inventory[item.id] || 0) + 1;
 
-	// Compute the needle rotation and distance.
-	useEffect(() => {
-		if (!userLocation || !targetQuest) return;
-		const bearing = calculateBearing(
-			userLocation.lat,
-			userLocation.lng,
-			targetQuest.location.lat,
-			targetQuest.location.lng
-		);
-		const rawRotation = deviceHeading - bearing;
-		let newRotation = ((rawRotation % 360) + 360) % 360;
-		// Smoothing: adjust if the jump is large.
-		if (prevRotationRef.current !== null) {
-			let diff = newRotation - prevRotationRef.current;
-			if (diff > 180) {
-				newRotation = prevRotationRef.current + (diff - 360);
-			} else if (diff < -180) {
-				newRotation = prevRotationRef.current + (diff + 360);
+			await updateDoc(teamRef, {
+				currency: updatedCurrency,
+				inventory: inventory,
+			});
+			setCurrency(updatedCurrency);
+			setTeam({ ...team, inventory });
+			setActiveMessage(`Your team purchased: ${item.name}`);
+			setTimeout(() => setActiveMessage(''), 3000);
+		} catch (err) {
+			console.error('Error processing purchase:', err);
+			setError('Purchase failed. Try again.');
+			setTimeout(() => setError(''), 3000);
+		}
+	};
+
+	// Handle Activate click: validate conditions then open modal.
+	const handleActivateClick = (item) => {
+		if (team && team.activeItem) {
+			setError('Your team already has an active item at the moment.');
+			setTimeout(() => setError(''), 3000);
+			return;
+		}
+		if (!(team && team.inventory && team.inventory[item.id] > 0)) {
+			setError(`Your team does not have any ${item.name} items right now.`);
+			setTimeout(() => setError(''), 3000);
+			return;
+		}
+		setSelectedItem(item);
+		setShowItemModal(true);
+	};
+
+	// Mapping of item types to activation components.
+	const activationComponents = {
+		robbery: Robbery,
+		compass: Compass,
+	};
+
+	// Callback to close the activation modal.
+	const onCloseModal = () => {
+		setShowItemModal(false);
+		setSelectedItem(null);
+	};
+
+	// Handler to mark the item as used in the team's inventory.
+	const handleItemUsed = async () => {
+		if (!team) return;
+		const teamRef = doc(db, 'teams', team.id);
+		const inventory = team.inventory || {};
+		// Ensure the team has at least one item.
+		if (inventory[selectedItem.id] > 0) {
+			const updatedInventory = {
+				...inventory,
+				[selectedItem.id]: inventory[selectedItem.id] - 1,
+			};
+			try {
+				await updateDoc(teamRef, { inventory: updatedInventory });
+				setTeam({ ...team, inventory: updatedInventory });
+			} catch (err) {
+				console.error('Error updating inventory:', err);
 			}
 		}
-		prevRotationRef.current = newRotation;
-		setNeedleRotation(newRotation);
+	};
 
-		const dist = getDistanceFromLatLonInMeters(
-			userLocation.lat,
-			userLocation.lng,
-			targetQuest.location.lat,
-			targetQuest.location.lng
-		);
-		setDistance(dist);
-
-		// If the user is within the fence (with a 5m buffer) and hasn't manually exited.
-		if (dist <= targetQuest.location.fence - 5 && !manualExit) {
-			setArrivalMessage(
-				"You've reached your destination! Thank you for travelling with GCR25."
-			);
-			if (typeof onUsed === 'function') {
-				onUsed();
-			}
-			setTimeout(() => {
-				onClose();
-			}, 5000);
-		} else {
-			setArrivalMessage('');
-		}
-	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed, manualExit]);
-
-	// Extra render-time check: if the user is already inside the target quest's fence.
-	if (
-		userLocation &&
-		targetQuest &&
-		getDistanceFromLatLonInMeters(
-			userLocation.lat,
-			userLocation.lng,
-			targetQuest.location.lat,
-			targetQuest.location.lng
-		) <= targetQuest.location.fence
-	) {
+	// Render the modal content with both onClose and onUsed
+	const renderModalContent = () => {
+		if (!selectedItem) return null;
+		const ActivationComponent =
+			activationComponents[selectedItem.type] || DefaultItem;
 		return (
-			<div className="p-4 text-center">
-				<p>Compass not available – You are already at a quest-location.</p>
+			<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+				<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+					{/* Pass onUsed along with onClose */}
+					<ActivationComponent
+						team={team}
+						selectedItem={selectedItem}
+						db={db}
+						onClose={onCloseModal}
+						onUsed={handleItemUsed}
+					/>
+				</div>
 			</div>
 		);
-	}
-
-	// Also, if no targetQuest or if a quest is active, do not render the compass.
-	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
-		return (
-			<div className="p-4 text-center">
-				<p>Compass not available – You already have an active quest.</p>
-			</div>
-		);
-	}
+	};
 
 	return (
-		<div className="relative flex flex-col items-center">
-			{/* X Button (manual close) does NOT call onUsed */}
-			<button
-				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
-				onClick={() => {
-					setManualExit(true);
-					onClose();
-				}}
-			>
-				✕
-			</button>
-			{/* Compass Container */}
-			<div className="relative" style={{ width: '300px', height: '300px' }}>
-				<img
-					src={compassBase}
-					alt="Compass Base"
-					style={{ width: '100%', height: '100%' }}
-				/>
-				<img
-					src={compassNeedle}
-					alt="Compass Needle"
-					style={{
-						width: '55%',
-						height: '80%',
-						position: 'absolute',
-						top: '11%',
-						left: '23%',
-						transform: `rotate(${needleRotation}deg)`,
-						transition: 'transform 0.5s ease-out',
-						pointerEvents: 'none',
-					}}
-				/>
-				{arrivalMessage && (
-					<div
-						className="absolute bg-green-600 bg-opacity-80 text-white p-2 rounded"
-						style={{ bottom: '10%', width: '100%', textAlign: 'center' }}
-					>
-						{arrivalMessage}
+		<>
+			{/* Error message overlay */}
+			{error && (
+				<div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+					<div className="bg-red-600 p-4 rounded-lg text-white shadow-lg">
+						{error}
 					</div>
-				)}
+				</div>
+			)}
+			{/* Success message overlay */}
+			{activeMessage && (
+				<div className="fixed top-16 left-1/2 transform -translate-x-1/2 z-50">
+					<div className="bg-green-600 p-4 rounded-lg text-white shadow-lg">
+						{activeMessage}
+					</div>
+				</div>
+			)}
+			<div className="min-h-screen bg-gray-900 text-white p-6">
+				<div className="max-w-4xl mx-auto">
+					<h2 className="text-3xl font-bold text-center mb-4">
+						🛒 In-Game Shop
+					</h2>
+					<h3 className="text-xl text-center mb-8">
+						Your Team's Balance: 💰 {currency}
+					</h3>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						{items.length === 0 ? (
+							<p className="text-center">No items found.</p>
+						) : (
+							items.map((item) => (
+								<div
+									key={item.id}
+									className="border border-gray-600 p-4 rounded-lg"
+								>
+									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
+									<p className="mb-2">{item.description}</p>
+									<p className="mb-2">💰 {item.price}</p>
+									{item.duration && (
+										<p className="mb-2">Duration: {item.duration} s</p>
+									)}
+									{item.stealAmount && (
+										<p className="mb-2">Steal: {item.stealAmount}</p>
+									)}
+									<div className="flex space-x-2">
+										<button
+											onClick={() => handlePurchase(item)}
+											className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded transition"
+										>
+											Buy
+										</button>
+										<button
+											onClick={() => handleActivateClick(item)}
+											className={`${
+												team &&
+												team.inventory &&
+												team.inventory[item.id] > 0 &&
+												!team.activeItem
+													? 'bg-green-600 hover:bg-green-700'
+													: 'bg-gray-600 cursor-not-allowed'
+											} text-white font-semibold py-1 px-3 rounded transition`}
+										>
+											Activate
+										</button>
+									</div>
+									<p className="text-sm mt-1">
+										Owned:{' '}
+										{team &&
+										team.inventory &&
+										team.inventory[item.id] !== undefined
+											? team.inventory[item.id]
+											: 0}
+									</p>
+								</div>
+							))
+						)}
+					</div>
+				</div>
+				{showItemModal && renderModalContent()}
 			</div>
-			<p className="mt-4 font-bold text-gray-300 text-3xl">
-				{distance !== null ? `${Math.round(distance)} m` : '-- m'}
-			</p>
-		</div>
+		</>
 	);
-};
+}
 
-export default Compass;
+export default Shop;
