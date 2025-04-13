@@ -139,7 +139,27 @@ function Shop({ user, db }) {
 		setSelectedItem(null);
 	};
 
-	// Render the modal with dynamic content.
+	// Handler to mark the item as used in the team's inventory.
+	const handleItemUsed = async () => {
+		if (!team) return;
+		const teamRef = doc(db, 'teams', team.id);
+		const inventory = team.inventory || {};
+		// Ensure the team has at least one compass.
+		if (inventory[selectedItem.id] > 0) {
+			const updatedInventory = {
+				...inventory,
+				[selectedItem.id]: inventory[selectedItem.id] - 1,
+			};
+			try {
+				await updateDoc(teamRef, { inventory: updatedInventory });
+				setTeam({ ...team, inventory: updatedInventory });
+			} catch (err) {
+				console.error('Error updating inventory:', err);
+			}
+		}
+	};
+
+	// Render the modal content with both onClose and onUsed
 	const renderModalContent = () => {
 		if (!selectedItem) return null;
 		const ActivationComponent =
@@ -147,11 +167,13 @@ function Shop({ user, db }) {
 		return (
 			<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 				<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+					{/* Pass onUsed along with onClose */}
 					<ActivationComponent
 						team={team}
 						selectedItem={selectedItem}
 						db={db}
 						onClose={onCloseModal}
+						onUsed={handleItemUsed}
 					/>
 				</div>
 			</div>

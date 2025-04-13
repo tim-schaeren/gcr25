@@ -40,7 +40,7 @@ function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
 	return R * c;
 }
 
-const Compass = ({ team, selectedItem, db, onClose }) => {
+const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 	const [targetQuest, setTargetQuest] = useState(null);
 	const [userLocation, setUserLocation] = useState(null);
 	const [deviceHeading, setDeviceHeading] = useState(0);
@@ -48,16 +48,13 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 	const [distance, setDistance] = useState(null);
 	const [arrivalMessage, setArrivalMessage] = useState('');
 
-	// Ref to store the previous rotation (for smoothing transitions)
+	// Ref to store previous rotation value for smoothing.
 	const prevRotationRef = useRef(null);
 
 	// Fetch the target quest (next quest to activate) unless a quest is already active.
 	useEffect(() => {
 		const fetchNextQuest = async () => {
-			if (team.progress && team.progress.currentQuest) {
-				return;
-			}
-
+			if (team.progress && team.progress.currentQuest) return;
 			let nextSequence = 1;
 			if (
 				team.progress &&
@@ -85,7 +82,7 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		fetchNextQuest();
 	}, [team, db]);
 
-	// Set up a geolocation watcher to update the user's location continuously.
+	// Geolocation watcher.
 	useEffect(() => {
 		if (!navigator.geolocation) {
 			console.error('Geolocation is not supported by this browser.');
@@ -105,7 +102,7 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		return () => navigator.geolocation.clearWatch(watchId);
 	}, []);
 
-	// Set up a device orientation listener if available.
+	// Device orientation listener.
 	useEffect(() => {
 		const handleOrientation = (event) => {
 			const heading = event.alpha || event.webkitCompassHeading || 0;
@@ -137,29 +134,24 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		} else {
 			window.addEventListener('deviceorientation', handleOrientation, true);
 		}
-
 		return () => {
 			window.removeEventListener('deviceorientation', handleOrientation);
 		};
 	}, []);
 
-	// Compute the needle rotation and distance whenever userLocation, targetQuest, or deviceHeading changes.
+	// Compute needle rotation and distance.
 	useEffect(() => {
 		if (!userLocation || !targetQuest) return;
-
-		// Calculate bearing from the user's location to the target.
 		const bearing = calculateBearing(
 			userLocation.lat,
 			userLocation.lng,
 			targetQuest.location.lat,
 			targetQuest.location.lng
 		);
-		// Use the formula: deviceHeading - bearing.
 		const rawRotation = deviceHeading - bearing;
-		// Normalize raw rotation to [0, 360)
 		let newRotation = ((rawRotation % 360) + 360) % 360;
 
-		// Smoothing: if a previous rotation exists, adjust if the jump is large.
+		// Smooth the rotation transition by taking the shortest difference.
 		if (prevRotationRef.current !== null) {
 			let diff = newRotation - prevRotationRef.current;
 			if (diff > 180) {
@@ -171,7 +163,6 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		prevRotationRef.current = newRotation;
 		setNeedleRotation(newRotation);
 
-		// Compute the distance from user to target.
 		const dist = getDistanceFromLatLonInMeters(
 			userLocation.lat,
 			userLocation.lng,
@@ -180,20 +171,23 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		);
 		setDistance(dist);
 
-		// If the user is within targetQuest fence (with a 5m buffer), show arrival and auto-close.
 		if (dist <= targetQuest.location.fence - 5) {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
 			);
+			// Mark the compass as used (inventory update) and then close.
+			if (typeof onUsed === 'function') {
+				onUsed();
+			}
 			setTimeout(() => {
 				onClose();
 			}, 5000);
 		} else {
 			setArrivalMessage('');
 		}
-	}, [userLocation, targetQuest, deviceHeading, onClose]);
+	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed]);
 
-	// Render nothing if there's no targetQuest or if an active quest is already set.
+	// Render nothing if no targetQuest or if a quest is active.
 	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
 		return (
 			<div className="p-4 text-center">
@@ -204,6 +198,20 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 
 	return (
 		<div className="relative flex flex-col items-center">
+			{/* X Button in top-right */}
+			<button
+				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
+				onClick={() => {
+					// Optionally, you can prompt the user if they wish to cancel.
+					if (typeof onUsed === 'function') {
+						// If you want manual cancelation to not count as “used,” remove this call.
+						onUsed();
+					}
+					onClose();
+				}}
+			>
+				✕
+			</button>
 			{/* Compass Container */}
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
 				<img
