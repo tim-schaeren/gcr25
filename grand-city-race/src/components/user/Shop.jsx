@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Robbery from '../items/Robbery';
+import Compass from '../items/Compass';
 import DefaultItem from '../items/DefaultItem';
 
 import {
@@ -129,6 +130,7 @@ function Shop({ user, db }) {
 	// Mapping of item types to activation components.
 	const activationComponents = {
 		robbery: Robbery,
+		compass: Compass,
 	};
 
 	// Callback to close the activation modal.
