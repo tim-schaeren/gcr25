@@ -203,10 +203,6 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
 				onClick={() => {
 					// Optionally, you can prompt the user if they wish to cancel.
-					if (typeof onUsed === 'function') {
-						// If you want manual cancelation to not count as “used,” remove this call.
-						onUsed();
-					}
 					onClose();
 				}}
 			>
