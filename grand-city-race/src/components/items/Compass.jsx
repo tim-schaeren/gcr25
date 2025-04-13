@@ -47,7 +47,6 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 	const [needleRotation, setNeedleRotation] = useState(0);
 	const [distance, setDistance] = useState(null);
 	const [arrivalMessage, setArrivalMessage] = useState('');
-	// State to mark if the user manually closed the modal.
 	const [manualExit, setManualExit] = useState(false);
 	// Ref to store the previous rotation (for smoothing transitions)
 	const prevRotationRef = useRef(null);
@@ -185,23 +184,11 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		}
 	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed, manualExit]);
 
-	// Compute whether the user is already inside the quest's fence.
-	const alreadyAtQuest =
-		userLocation &&
-		targetQuest &&
-		getDistanceFromLatLonInMeters(
-			userLocation.lat,
-			userLocation.lng,
-			targetQuest.location.lat,
-			targetQuest.location.lng
-		) <= targetQuest.location.fence;
-
 	// Compute whether there is an active quest.
 	const hasActiveQuest = team && team.progress && team.progress.currentQuest;
 
-	// If an active quest exists or the user is already at the quest location,
-	// render a container with the message and an "X" button.
-	if (hasActiveQuest || alreadyAtQuest) {
+	// If an active quest exists render a container with the message and an "X" button.
+	if (hasActiveQuest) {
 		return (
 			<div className="relative flex flex-col items-center p-4">
 				<button
@@ -211,12 +198,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 					✕
 				</button>
 				<div className="p-4 text-center">
-					<p>
-						Compass not available –{' '}
-						{hasActiveQuest
-							? 'You already have an active quest.'
-							: 'You are already at a quest-location.'}
-					</p>
+					<p>Compass not available – Solve your active quest first.</p>
 				</div>
 			</div>
 		);

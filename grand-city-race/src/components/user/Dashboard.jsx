@@ -195,7 +195,7 @@ function Dashboard({ user, db }) {
 	}, [user, db]);
 
 	// ------------------- QUEST ACTIVATION LOGIC BASED ON LOCATION -------------------
-	// This effect runs every 5 seconds to check if the user is within the fence of the next quest.
+	// This effect runs every 2 seconds to check if the user is within the fence of the next quest.
 	// If the user is within the fence and no quest is active, it activates the quest.
 	// If the user leaves the fence, it clears an active quest.
 	useEffect(() => {
@@ -293,7 +293,7 @@ function Dashboard({ user, db }) {
 
 		const activationInterval = setInterval(() => {
 			checkQuestActivation();
-		}, 5000);
+		}, 2000);
 
 		return () => clearInterval(activationInterval);
 	}, [team, user, db]);
@@ -301,9 +301,7 @@ function Dashboard({ user, db }) {
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
 			<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl">
-				<h2 className="text-2xl font-bold text-center">
-					👋 Welcome, {userName}
-				</h2>
+				<h2 className="text-2xl font-bold text-center">Welcome, {userName}</h2>
 				{team && (
 					<h3 className="text-lg text-gray-400 text-center mt-2">
 						Team: <span className="font-semibold text-white">{team.name}</span>
@@ -312,7 +310,7 @@ function Dashboard({ user, db }) {
 				<div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
 					{quest ? (
 						<>
-							<h3 className="text-xl font-semibold">📜 Current Quest:</h3>
+							<h3 className="text-xl font-semibold">This is your quest:</h3>
 							{quest.imageUrl && (
 								<div
 									onClick={() => {
@@ -355,22 +353,20 @@ function Dashboard({ user, db }) {
 						</>
 					) : nextHint ? (
 						<div>
-							<h3 className="text-xl font-semibold">🔑 Next Quest Hint:</h3>
+							<h3 className="text-xl font-semibold">🔑 Next Hint:</h3>
 							<p className="text-gray-300 mt-2">{nextHint}</p>
 							<p className="text-gray-400 mt-2">
-								Get close to the quest area to activate the quest.
+								Solve the hint and find the quest-area to activate the quest.
 							</p>
 						</div>
 					) : (
 						<p className="text-gray-400">
-							⚡ Move closer to a quest area to start your next quest!
+							⚡ Ask your gamemasters to give you a hint on where to go.
 						</p>
 					)}
 				</div>
 				<div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
-					<h3 className="text-xl font-semibold">
-						💰 Team Currency: {currency}
-					</h3>
+					<h3 className="text-xl font-semibold">💰 Bank: {currency}</h3>
 				</div>
 				{locationPermission === false && (
 					<p className="mt-4 text-red-400 text-center">
@@ -382,7 +378,7 @@ function Dashboard({ user, db }) {
 						onClick={() => navigate('/shop')}
 						className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md"
 					>
-						🛒 Open Shop
+						🛒 Shop
 					</button>
 				</div>
 			</div>
