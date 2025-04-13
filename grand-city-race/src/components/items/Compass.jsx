@@ -148,7 +148,8 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 			targetQuest.location.lng
 		);
 		const rawRotation = deviceHeading - bearing;
-		let newRotation = ((rawRotation % 360) + 360) % 360;
+		const offset = 90;
+		let newRotation = (((rawRotation + offset) % 360) + 360) % 360;
 		// Smoothing: adjust if the jump is large.
 		if (prevRotationRef.current !== null) {
 			let diff = newRotation - prevRotationRef.current;
@@ -169,8 +170,6 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		);
 		setDistance(dist);
 
-		// If user is within the fence (minus a 5m buffer) and they haven't manually exited,
-		// then trigger the auto-arrival behavior.
 		if (dist <= targetQuest.location.fence - 5 && !manualExit) {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
