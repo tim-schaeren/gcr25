@@ -209,23 +209,16 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 					src={compassNeedle}
 					alt="Compass Needle"
 					style={{
-						width: '60%',
-						height: '60%',
+						width: '55%',
+						height: '80%',
 						position: 'absolute',
-						top: '20%', // center vertically (adjust as needed)
-						left: '20%', // center horizontally (adjust as needed)
+						top: '11%', // center vertically (adjust as needed)
+						left: '23%', // center horizontally (adjust as needed)
 						transform: `rotate(${needleRotation}deg)`,
 						transition: 'transform 0.5s ease-out',
 						pointerEvents: 'none',
 					}}
 				/>
-				{/* Overlay Distance (positioned at the top center) */}
-				<div
-					className="absolute text-white font-bold"
-					style={{ top: '10%', width: '100%', textAlign: 'center' }}
-				>
-					{distance !== null ? `${Math.round(distance)} m` : '-- m'}
-				</div>
 				{/* Arrival Message overlay */}
 				{arrivalMessage && (
 					<div
@@ -236,9 +229,8 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 					</div>
 				)}
 			</div>
-			{/* Optional: Additional text or instructions */}
-			<p className="mt-4 text-sm text-gray-300">
-				Point your device and follow the needle to the next quest location.
+			<p className="mt-4 font-bold text-gray-300 text-3xl">
+				{distance !== null ? `${Math.round(distance)} m` : '-- m'}{' '}
 			</p>
 		</div>
 	);
