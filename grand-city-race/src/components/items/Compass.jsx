@@ -47,7 +47,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 	const [needleRotation, setNeedleRotation] = useState(0);
 	const [distance, setDistance] = useState(null);
 	const [arrivalMessage, setArrivalMessage] = useState('');
-	// New state to flag if user manually closed the compass.
+	// State to mark if the user manually closed the modal.
 	const [manualExit, setManualExit] = useState(false);
 	// Ref to store the previous rotation (for smoothing transitions)
 	const prevRotationRef = useRef(null);
@@ -108,7 +108,6 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 			const heading = event.alpha || event.webkitCompassHeading || 0;
 			setDeviceHeading(heading);
 		};
-
 		if (
 			typeof DeviceOrientationEvent !== 'undefined' &&
 			typeof DeviceOrientationEvent.requestPermission === 'function'
@@ -139,7 +138,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		};
 	}, []);
 
-	// Compute the needle rotation and distance.
+	// Compute needle rotation and distance.
 	useEffect(() => {
 		if (!userLocation || !targetQuest) return;
 		const bearing = calculateBearing(
@@ -170,7 +169,8 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		);
 		setDistance(dist);
 
-		// If the user is within the fence (with a 5m buffer) and hasn't manually exited.
+		// If user is within the fence (minus a 5m buffer) and they haven't manually exited,
+		// then trigger the auto-arrival behavior.
 		if (dist <= targetQuest.location.fence - 5 && !manualExit) {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
@@ -186,8 +186,8 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		}
 	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed, manualExit]);
 
-	// Extra render-time check: if the user is already inside the target quest's fence.
-	if (
+	// Compute whether the user is already inside the quest's fence.
+	const alreadyAtQuest =
 		userLocation &&
 		targetQuest &&
 		getDistanceFromLatLonInMeters(
@@ -195,27 +195,38 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 			userLocation.lng,
 			targetQuest.location.lat,
 			targetQuest.location.lng
-		) <= targetQuest.location.fence
-	) {
+		) <= targetQuest.location.fence;
+
+	// Compute whether there is an active quest.
+	const hasActiveQuest = team && team.progress && team.progress.currentQuest;
+
+	// If an active quest exists or the user is already at the quest location,
+	// render a container with the message and an "X" button.
+	if (hasActiveQuest || alreadyAtQuest) {
 		return (
-			<div className="p-4 text-center">
-				<p>Compass not available – You are already at a quest-location.</p>
+			<div className="relative flex flex-col items-center p-4">
+				<button
+					className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
+					onClick={onClose}
+				>
+					✕
+				</button>
+				<div className="p-4 text-center">
+					<p>
+						Compass not available –{' '}
+						{hasActiveQuest
+							? 'You already have an active quest.'
+							: 'You are already at a quest-location.'}
+					</p>
+				</div>
 			</div>
 		);
 	}
 
-	// Also, if no targetQuest or if a quest is active, do not render the compass.
-	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
-		return (
-			<div className="p-4 text-center">
-				<p>Compass not available – You already have an active quest.</p>
-			</div>
-		);
-	}
-
+	// Otherwise, render the normal compass UI.
 	return (
 		<div className="relative flex flex-col items-center">
-			{/* X Button (manual close) does NOT call onUsed */}
+			{/* Close (X) Button always visible */}
 			<button
 				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
 				onClick={() => {
@@ -225,7 +236,6 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 			>
 				✕
 			</button>
-			{/* Compass Container */}
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
 				<img
 					src={compassBase}
