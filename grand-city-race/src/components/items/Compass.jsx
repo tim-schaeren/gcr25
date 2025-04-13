@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import compassBase from '../../assets/compass_base.png';
 import compassNeedle from '../../assets/compass_needle.png';
 import {
@@ -48,10 +48,12 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 	const [distance, setDistance] = useState(null);
 	const [arrivalMessage, setArrivalMessage] = useState('');
 
+	// Ref to store the previous rotation (for smoothing transitions)
+	const prevRotationRef = useRef(null);
+
 	// Fetch the target quest (next quest to activate) unless a quest is already active.
 	useEffect(() => {
 		const fetchNextQuest = async () => {
-			// If an active quest is already set on the team, exit.
 			if (team.progress && team.progress.currentQuest) {
 				return;
 			}
@@ -71,7 +73,6 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 					nextSequence = lastQuestData.sequence + 1;
 				}
 			}
-			// Query for quest with the desired sequence.
 			const questsRef = collection(db, 'quests');
 			const qNext = query(questsRef, where('sequence', '==', nextSequence));
 			const nextSnap = await getDocs(qNext);
@@ -107,12 +108,10 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 	// Set up a device orientation listener if available.
 	useEffect(() => {
 		const handleOrientation = (event) => {
-			// event.alpha gives the orientation relative to north.
 			const heading = event.alpha || event.webkitCompassHeading || 0;
 			setDeviceHeading(heading);
 		};
 
-		// Check if permission is required (iOS 13+)
 		if (
 			typeof DeviceOrientationEvent !== 'undefined' &&
 			typeof DeviceOrientationEvent.requestPermission === 'function'
@@ -136,7 +135,6 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 					)
 				);
 		} else {
-			// For browsers that don't require permission
 			window.addEventListener('deviceorientation', handleOrientation, true);
 		}
 
@@ -148,20 +146,32 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 	// Compute the needle rotation and distance whenever userLocation, targetQuest, or deviceHeading changes.
 	useEffect(() => {
 		if (!userLocation || !targetQuest) return;
-		// Calculate the bearing from the user's location to the target.
+
+		// Calculate bearing from the user's location to the target.
 		const bearing = calculateBearing(
 			userLocation.lat,
 			userLocation.lng,
 			targetQuest.location.lat,
 			targetQuest.location.lng
 		);
-		// Changed formula: now subtract bearing from deviceHeading.
-		let rotation = deviceHeading - bearing;
-		// Normalize the rotation to between 0 and 360 degrees.
-		rotation = ((rotation % 360) + 360) % 360;
-		setNeedleRotation(rotation);
+		// Use the formula: deviceHeading - bearing.
+		const rawRotation = deviceHeading - bearing;
+		// Normalize raw rotation to [0, 360)
+		let newRotation = ((rawRotation % 360) + 360) % 360;
 
-		// Compute the distance in meters.
+		// Smoothing: if a previous rotation exists, adjust if the jump is large.
+		if (prevRotationRef.current !== null) {
+			let diff = newRotation - prevRotationRef.current;
+			if (diff > 180) {
+				newRotation = prevRotationRef.current + (diff - 360);
+			} else if (diff < -180) {
+				newRotation = prevRotationRef.current + (diff + 360);
+			}
+		}
+		prevRotationRef.current = newRotation;
+		setNeedleRotation(newRotation);
+
+		// Compute the distance from user to target.
 		const dist = getDistanceFromLatLonInMeters(
 			userLocation.lat,
 			userLocation.lng,
@@ -170,7 +180,7 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		);
 		setDistance(dist);
 
-		// If the user is within the quest's fence minus a 5-meter buffer.
+		// If the user is within targetQuest fence (with a 5m buffer), show arrival and auto-close.
 		if (dist <= targetQuest.location.fence - 5) {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
@@ -183,7 +193,7 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		}
 	}, [userLocation, targetQuest, deviceHeading, onClose]);
 
-	// Render nothing if there is no targetQuest or if an active quest is already set.
+	// Render nothing if there's no targetQuest or if an active quest is already set.
 	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
 		return (
 			<div className="p-4 text-center">
@@ -196,13 +206,11 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		<div className="relative flex flex-col items-center">
 			{/* Compass Container */}
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
-				{/* Compass Base Image (replace with your actual image URL) */}
 				<img
 					src={compassBase}
 					alt="Compass Base"
 					style={{ width: '100%', height: '100%' }}
 				/>
-				{/* Needle Image: absolutely centered and rotated */}
 				<img
 					src={compassNeedle}
 					alt="Compass Needle"
@@ -210,14 +218,13 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 						width: '55%',
 						height: '80%',
 						position: 'absolute',
-						top: '11%', // center vertically (adjust as needed)
-						left: '23%', // center horizontally (adjust as needed)
+						top: '11%',
+						left: '23%',
 						transform: `rotate(${needleRotation}deg)`,
 						transition: 'transform 0.5s ease-out',
 						pointerEvents: 'none',
 					}}
 				/>
-				{/* Arrival Message overlay */}
 				{arrivalMessage && (
 					<div
 						className="absolute bg-green-600 bg-opacity-80 text-white p-2 rounded"
@@ -228,7 +235,7 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 				)}
 			</div>
 			<p className="mt-4 font-bold text-gray-300 text-3xl">
-				{distance !== null ? `${Math.round(distance)} m` : '-- m'}{' '}
+				{distance !== null ? `${Math.round(distance)} m` : '-- m'}
 			</p>
 		</div>
 	);
