@@ -48,13 +48,17 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 	const [distance, setDistance] = useState(null);
 	const [arrivalMessage, setArrivalMessage] = useState('');
 
-	// Ref to store previous rotation value for smoothing.
+	// Ref to store the previous rotation (for smoothing transitions)
 	const prevRotationRef = useRef(null);
 
-	// Fetch the target quest (next quest to activate) unless a quest is already active.
+	// Fetch the target quest (next quest to activate) unless a quest is active.
 	useEffect(() => {
 		const fetchNextQuest = async () => {
-			if (team.progress && team.progress.currentQuest) return;
+			// If an active quest exists, exit.
+			if (team.progress && team.progress.currentQuest) {
+				return;
+			}
+
 			let nextSequence = 1;
 			if (
 				team.progress &&
@@ -78,11 +82,10 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 				setTargetQuest({ id: questDoc.id, ...questDoc.data() });
 			}
 		};
-
 		fetchNextQuest();
 	}, [team, db]);
 
-	// Geolocation watcher.
+	// Set up geolocation watcher.
 	useEffect(() => {
 		if (!navigator.geolocation) {
 			console.error('Geolocation is not supported by this browser.');
@@ -102,7 +105,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		return () => navigator.geolocation.clearWatch(watchId);
 	}, []);
 
-	// Device orientation listener.
+	// Set up device orientation listener.
 	useEffect(() => {
 		const handleOrientation = (event) => {
 			const heading = event.alpha || event.webkitCompassHeading || 0;
@@ -134,6 +137,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		} else {
 			window.addEventListener('deviceorientation', handleOrientation, true);
 		}
+
 		return () => {
 			window.removeEventListener('deviceorientation', handleOrientation);
 		};
@@ -151,7 +155,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		const rawRotation = deviceHeading - bearing;
 		let newRotation = ((rawRotation % 360) + 360) % 360;
 
-		// Smooth the rotation transition by taking the shortest difference.
+		// Smoothing: adjust the rotation if the jump is large.
 		if (prevRotationRef.current !== null) {
 			let diff = newRotation - prevRotationRef.current;
 			if (diff > 180) {
@@ -175,7 +179,7 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
 			);
-			// Mark the compass as used (inventory update) and then close.
+			// Mark the item as used and then close the compass.
 			if (typeof onUsed === 'function') {
 				onUsed();
 			}
@@ -187,22 +191,61 @@ const Compass = ({ team, selectedItem, db, onClose, onUsed }) => {
 		}
 	}, [userLocation, targetQuest, deviceHeading, onClose, onUsed]);
 
-	// Render nothing if no targetQuest or if a quest is active.
+	// Render nothing if no targetQuest or if an active quest exists.
 	if (!targetQuest || (team.progress && team.progress.currentQuest)) {
 		return (
-			<div className="p-4 text-center">
-				<p>Compass not available – You are already at a quest-location.</p>
+			<div className="relative flex flex-col items-center">
+				{/* Close button (X) in top-right */}
+				<button
+					className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
+					onClick={() => {
+						onClose();
+					}}
+				>
+					✕
+				</button>
+				<div className="p-4 text-center">
+					<p>Compass not available – You already have an active quest.</p>
+				</div>
+			</div>
+		);
+	}
+
+	// **Additional Check:** Render nothing if the user is already inside the quest's fence.
+	if (
+		userLocation &&
+		targetQuest &&
+		getDistanceFromLatLonInMeters(
+			userLocation.lat,
+			userLocation.lng,
+			targetQuest.location.lat,
+			targetQuest.location.lng
+		) <= targetQuest.location.fence
+	) {
+		return (
+			<div className="relative flex flex-col items-center">
+				{/* Close button (X) in top-right */}
+				<button
+					className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
+					onClick={() => {
+						onClose();
+					}}
+				>
+					✕
+				</button>
+				<div className="p-4 text-center">
+					<p>Compass not available – You are already at a quest-location.</p>
+				</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className="relative flex flex-col items-center">
-			{/* X Button in top-right */}
+			{/* Close button (X) in top-right */}
 			<button
 				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
 				onClick={() => {
-					// Optionally, you can prompt the user if they wish to cancel.
 					onClose();
 				}}
 			>
