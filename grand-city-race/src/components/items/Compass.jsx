@@ -155,10 +155,9 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 			targetQuest.location.lat,
 			targetQuest.location.lng
 		);
-		// The needle should point relative to the device's heading.
-		// For a proper compass effect, we subtract the deviceHeading from the bearing.
-		let rotation = bearing - deviceHeading;
-		// Normalize the rotation to between 0 and 360.
+		// Changed formula: now subtract bearing from deviceHeading.
+		let rotation = deviceHeading - bearing;
+		// Normalize the rotation to between 0 and 360 degrees.
 		rotation = ((rotation % 360) + 360) % 360;
 		setNeedleRotation(rotation);
 
@@ -171,12 +170,11 @@ const Compass = ({ team, selectedItem, db, onClose }) => {
 		);
 		setDistance(dist);
 
-		// If the user has reached the fence of the quest (and 5m in)
+		// If the user is within the quest's fence minus a 5-meter buffer.
 		if (dist <= targetQuest.location.fence - 5) {
 			setArrivalMessage(
 				"You've reached your destination! Thank you for travelling with GCR25."
 			);
-			// After 5 seconds, automatically close the compass.
 			setTimeout(() => {
 				onClose();
 			}, 5000);
