@@ -66,7 +66,15 @@ function Solver({ user, db }) {
 			return;
 		}
 
-		if (answer.trim().toLowerCase() !== quest.answer.toLowerCase()) {
+		// Normalize user input
+		const userAnswer = answer.trim().toLowerCase();
+		// Normalize the array of valid answers from Firestore
+		const validAnswers = Array.isArray(quest.answer)
+			? quest.answer.map((a) => a.trim().toLowerCase())
+			: [];
+
+		// If none of the validAnswers match, show error
+		if (!validAnswers.includes(userAnswer)) {
 			setErrorMessage('Incorrect answer! Try again.');
 			return;
 		}

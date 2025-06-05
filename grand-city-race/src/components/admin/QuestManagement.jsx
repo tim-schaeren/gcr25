@@ -127,7 +127,7 @@ function QuestManagement({ db, storage }) {
 	const [newQuestSequence, setNewQuestSequence] = useState('');
 	const [newQuestHint, setNewQuestHint] = useState('');
 	const [newQuestText, setNewQuestText] = useState('');
-	const [newQuestAnswer, setNewQuestAnswer] = useState('');
+	const [newQuestAnswers, setNewQuestAnswers] = useState(['']);
 	// New state for location and fence in the add modal.
 	const [newQuestLocation, setNewQuestLocation] = useState({
 		lat: 46.9481,
@@ -151,7 +151,7 @@ function QuestManagement({ db, storage }) {
 	const [editQuestSequence, setEditQuestSequence] = useState('');
 	const [editQuestHint, setEditQuestHint] = useState('');
 	const [editQuestText, setEditQuestText] = useState('');
-	const [editQuestAnswer, setEditQuestAnswer] = useState('');
+	const [editQuestAnswers, setEditQuestAnswers] = useState([]);
 	// New state for location/fence in the edit modal.
 	const [editQuestLocation, setEditQuestLocation] = useState({
 		lat: 46.9481,
@@ -260,7 +260,13 @@ function QuestManagement({ db, storage }) {
 		setEditQuestSequence(quest.sequence ? quest.sequence.toString() : '');
 		setEditQuestHint(quest.hint || '');
 		setEditQuestText(quest.text || '');
-		setEditQuestAnswer(quest.answer || '');
+		setEditQuestAnswers(
+			Array.isArray(quest.answer)
+				? quest.answer
+				: quest.answer
+				? [quest.answer]
+				: ['']
+		);
 		// Prepopulate media info as before…
 		if (quest.imageUrl) {
 			setEditQuestMediaType('image');
@@ -351,7 +357,7 @@ function QuestManagement({ db, storage }) {
 			sequence: newSeq,
 			hint: newQuestHint,
 			text: newQuestText,
-			answer: newQuestAnswer,
+			answer: newQuestAnswers,
 			imageUrl: newQuestMediaType === 'image' ? imageUrl : '',
 			imagePath: newQuestMediaType === 'image' ? imagePath : '',
 			videoUrl: newQuestMediaType === 'video' ? videoUrl : '',
@@ -370,7 +376,7 @@ function QuestManagement({ db, storage }) {
 		setNewQuestSequence('');
 		setNewQuestHint('');
 		setNewQuestText('');
-		setNewQuestAnswer('');
+		setNewQuestAnswers(['']);
 		setNewQuestMediaFile(null);
 		setNewQuestMediaPreview(null);
 		setNewQuestMediaType(null);
@@ -535,7 +541,7 @@ function QuestManagement({ db, storage }) {
 			name: editQuestName,
 			hint: editQuestHint,
 			text: editQuestText,
-			answer: editQuestAnswer,
+			answer: editQuestAnswers,
 			sequence: clampedSeq,
 			imageUrl: updatedImageUrl,
 			imagePath: updatedImagePath,
@@ -578,7 +584,7 @@ function QuestManagement({ db, storage }) {
 		setEditQuestSequence('');
 		setEditQuestHint('');
 		setEditQuestText('');
-		setEditQuestAnswer('');
+		setEditQuestAnswers('');
 		setEditQuestMediaFile(null);
 		setEditQuestMediaPreview(null);
 		setEditQuestMediaType(null);
@@ -781,13 +787,37 @@ function QuestManagement({ db, storage }) {
 							onChange={(e) => setNewQuestText(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
-						<input
-							type="text"
-							placeholder="Answer"
-							value={newQuestAnswer}
-							onChange={(e) => setNewQuestAnswer(e.target.value)}
-							className="w-full p-2 border rounded-md mb-4"
-						/>
+						<label>Answers</label>
+						{newQuestAnswers.map((ans, idx) => (
+							<div key={idx} className="flex mb-2">
+								<input
+									type="text"
+									placeholder={`Answer ${idx + 1}`}
+									value={ans}
+									onChange={(e) => {
+										const arr = [...newQuestAnswers];
+										arr[idx] = e.target.value;
+										setNewQuestAnswers(arr);
+									}}
+								/>
+								{newQuestAnswers.length > 1 && (
+									<button
+										onClick={() => {
+											setNewQuestAnswers(
+												newQuestAnswers.filter((_, i) => i !== idx)
+											);
+										}}
+									>
+										Remove
+									</button>
+								)}
+							</div>
+						))}
+						<button
+							onClick={() => setNewQuestAnswers([...newQuestAnswers, ''])}
+						>
+							Add Answer
+						</button>
 						{/* ── New location picker section ── */}
 						<div className="mb-4">
 							<label className="block font-semibold mb-2">
@@ -916,13 +946,37 @@ function QuestManagement({ db, storage }) {
 							onChange={(e) => setEditQuestText(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
-						<input
-							type="text"
-							placeholder="Answer"
-							value={editQuestAnswer}
-							onChange={(e) => setEditQuestAnswer(e.target.value)}
-							className="w-full p-2 border rounded-md mb-4"
-						/>
+						<label>Answers</label>
+						{editQuestAnswers.map((ans, idx) => (
+							<div key={idx} className="flex mb-2">
+								<input
+									type="text"
+									placeholder={`Answer ${idx + 1}`}
+									value={ans}
+									onChange={(e) => {
+										const arr = [...editQuestAnswers];
+										arr[idx] = e.target.value;
+										setEditQuestAnswers(arr);
+									}}
+								/>
+								{editQuestAnswers.length > 1 && (
+									<button
+										onClick={() => {
+											setEditQuestAnswers(
+												editQuestAnswers.filter((_, i) => i !== idx)
+											);
+										}}
+									>
+										Remove
+									</button>
+								)}
+							</div>
+						))}
+						<button
+							onClick={() => setEditQuestAnswers([...editQuestAnswers, ''])}
+						>
+							Add Answer
+						</button>
 						{/* ── New location picker in edit modal ── */}
 						<div className="mb-4">
 							<label className="block font-semibold mb-2">
@@ -1111,8 +1165,13 @@ function QuestManagement({ db, storage }) {
 							<strong>Text:</strong> {selectedQuestForView.text}
 						</p>
 						<p>
-							<strong>Answer:</strong> {selectedQuestForView.answer}
+							<strong>Answers:</strong>
 						</p>
+						<ul>
+							{selectedQuestForView.answer.map((ans, i) => (
+								<li key={i}>{ans}</li>
+							))}
+						</ul>
 						{/* Optionally display location info */}
 						{selectedQuestForView.location && (
 							<p>
