@@ -8,8 +8,6 @@ import {
 	collection,
 	addDoc,
 	query,
-	orderBy,
-	limit,
 	getDocs,
 	where,
 } from 'firebase/firestore';
@@ -44,6 +42,7 @@ function Dashboard({ user, db }) {
 	const [currentLocation, setCurrentLocation] = useState(null);
 	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
 	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
+	const [hotlineNumber, setHotlineNumber] = useState('');
 
 	const navigate = useNavigate();
 	const lastHistoryLocationRef = useRef(null);
@@ -119,6 +118,23 @@ function Dashboard({ user, db }) {
 
 		fetchUserData();
 	}, [user, db]);
+
+	// Fetch hotline number from Firestore settings.
+	useEffect(() => {
+		const fetchHotline = async () => {
+			try {
+				const hotlineRef = doc(db, 'settings', 'hotlineNumber');
+				const hotlineSnap = await getDoc(hotlineRef);
+				if (hotlineSnap.exists()) {
+					setHotlineNumber(hotlineSnap.data().value || '');
+				}
+			} catch (error) {
+				console.error('Error fetching hotline number:', error);
+			}
+		};
+
+		fetchHotline();
+	}, [db]);
 
 	// Update location every 30 seconds (for history and Firestore update)
 	useEffect(() => {
@@ -373,13 +389,28 @@ function Dashboard({ user, db }) {
 						⚠️ Location access denied. Please enable location services.
 					</p>
 				)}
-				<div className="flex flex-col sm:flex-row justify-between mt-6">
+				<div className="flex flex-col sm:flex-row justify-between mt-6 space-y-2 sm:space-y-0 sm:space-x-4">
 					<button
 						onClick={() => navigate('/shop')}
 						className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md"
 					>
 						🛒 Shop
 					</button>
+					{/* Hotline Button (pulls from Firestore “settings” collection) */}
+					<a
+						href={hotlineNumber ? `tel:${hotlineNumber}` : '#'}
+						className={`w-full sm:w-auto flex items-center justify-center font-semibold py-2 px-6 rounded-md ${
+							hotlineNumber
+								? 'bg-blue-500 hover:bg-blue-600 text-white'
+								: 'bg-gray-500 text-gray-300 cursor-not-allowed'
+						}`}
+						// If not loaded yet, prevent accidental clicks
+						onClick={(e) => {
+							if (!hotlineNumber) e.preventDefault();
+						}}
+					>
+						📞 Call Hotline
+					</a>
 				</div>
 			</div>
 			{/* Full-Screen Image Overlay */}

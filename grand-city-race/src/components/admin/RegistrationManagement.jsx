@@ -62,6 +62,12 @@ function RegistrationManagement({ db }) {
 						>
 							Registrations
 						</Link>
+						<Link
+							to="/admin/settings"
+							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
+						>
+							Settings
+						</Link>
 					</nav>
 				</aside>
 

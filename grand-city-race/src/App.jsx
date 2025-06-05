@@ -15,6 +15,7 @@ import QuestManagement from './components/admin/QuestManagement';
 import ItemManagement from './components/admin/ItemManagement';
 import EventSignup from './components/user/EventSignup';
 import RegistrationManagement from './components/admin/RegistrationManagement';
+import SettingsPage from './components/admin/SettingsPage';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -189,6 +190,16 @@ function App() {
 					element={
 						user && isAdmin ? (
 							<RegistrationManagement db={db} />
+						) : (
+							<Navigate to="/login" />
+						)
+					}
+				/>
+				<Route
+					path="/admin/settings"
+					element={
+						user && isAdmin ? (
+							<SettingsPage db={db} />
 						) : (
 							<Navigate to="/login" />
 						)
