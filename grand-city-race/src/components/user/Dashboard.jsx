@@ -456,7 +456,7 @@ function Dashboard({ user, db }) {
 							if (!hotlineNumber) e.preventDefault();
 						}}
 					>
-						📞 Call Hotline
+						📞 Call {userName === 'Kylie' ? ' Boyfriend' : ' Hotline'}
 					</a>
 				</div>
 			</div>
