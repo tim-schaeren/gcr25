@@ -10,6 +10,7 @@ import {
 	query,
 	getDocs,
 	where,
+	onSnapshot,
 } from 'firebase/firestore';
 
 // Helper functions for distance calculation.
@@ -36,6 +37,7 @@ function Dashboard({ user, db }) {
 	const [quest, setQuest] = useState(null);
 	const [currency, setCurrency] = useState(0);
 	const [team, setTeam] = useState(null);
+	const [unreadCount, setUnreadCount] = useState(0);
 	const [userName, setUserName] = useState('');
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
@@ -136,6 +138,22 @@ function Dashboard({ user, db }) {
 		fetchHotline();
 	}, [db]);
 
+	// Set up a listener for "unread admin→team" messages.
+	useEffect(() => {
+		if (!user || !team) return;
+
+		// Listen for messages where: to == team.id  AND  readByTeam == false
+		const unreadQuery = query(
+			collection(db, 'messages'),
+			where('to', '==', team.id),
+			where('readByTeam', '==', false)
+		);
+		const unsubscribe = onSnapshot(unreadQuery, (snapshot) => {
+			setUnreadCount(snapshot.size); // number of unread admin→team msgs
+		});
+		return () => unsubscribe();
+	}, [db, user, team]);
+
 	// Update location every 30 seconds (for history and Firestore update)
 	useEffect(() => {
 		if (!user) return;
@@ -211,7 +229,7 @@ function Dashboard({ user, db }) {
 	}, [user, db]);
 
 	// ------------------- QUEST ACTIVATION LOGIC BASED ON LOCATION -------------------
-	// This effect runs every 2 seconds to check if the user is within the fence of the next quest.
+	// This effect runs every 5 seconds to check if the user is within the fence of the next quest.
 	// If the user is within the fence and no quest is active, it activates the quest.
 	// If the user leaves the fence, it clears an active quest.
 	useEffect(() => {
@@ -309,13 +327,42 @@ function Dashboard({ user, db }) {
 
 		const activationInterval = setInterval(() => {
 			checkQuestActivation();
-		}, 2000);
+		}, 5000);
 
 		return () => clearInterval(activationInterval);
 	}, [team, user, db]);
 
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
+			{/* 📩 Messages Icon in top-left */}
+			{team && (
+				<div className="absolute top-4 left-4">
+					<button onClick={() => navigate('/chat')} className="relative">
+						<svg
+							class="w-6 h-6 text-gray-800 dark:text-white"
+							aria-hidden="true"
+							xmlns="http://www.w3.org/2000/svg"
+							width="24"
+							height="24"
+							fill="none"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke="currentColor"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M16 10.5h.01m-4.01 0h.01M8 10.5h.01M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-6.6a1 1 0 0 0-.69.275l-2.866 2.723A.5.5 0 0 1 8 18.635V17a1 1 0 0 0-1-1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+							/>
+						</svg>
+
+						{/* Red dot if unreadCount > 0 */}
+						{unreadCount > 0 && (
+							<span className="absolute -top-1 -right-1 block h-4 w-4 rounded-full bg-red-500" />
+						)}
+					</button>
+				</div>
+			)}
 			<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl">
 				<h2 className="text-2xl font-bold text-center">Welcome, {userName}</h2>
 				{team && (

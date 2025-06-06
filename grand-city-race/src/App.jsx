@@ -5,6 +5,7 @@ import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import Dashboard from './components/user/Dashboard';
+import Chat from './components/user/Chat';
 import Shop from './components/user/Shop';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Login from './components/user/Login';
@@ -16,6 +17,7 @@ import ItemManagement from './components/admin/ItemManagement';
 import EventSignup from './components/user/EventSignup';
 import RegistrationManagement from './components/admin/RegistrationManagement';
 import SettingsPage from './components/admin/SettingsPage';
+import MessagesPage from './components/admin/Messages';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -124,6 +126,12 @@ function App() {
 					}
 				/>
 				<Route
+					path="/chat"
+					element={
+						user ? <Chat user={user} db={db} /> : <Navigate to="/login" />
+					}
+				/>
+				<Route
 					path="/shop"
 					element={
 						user ? <Shop user={user} db={db} /> : <Navigate to="/login" />
@@ -200,6 +208,16 @@ function App() {
 					element={
 						user && isAdmin ? (
 							<SettingsPage db={db} />
+						) : (
+							<Navigate to="/login" />
+						)
+					}
+				/>
+				<Route
+					path="/admin/messages"
+					element={
+						user && isAdmin ? (
+							<MessagesPage db={db} />
 						) : (
 							<Navigate to="/login" />
 						)

@@ -7,7 +7,7 @@ import {
 	updateDoc,
 	deleteDoc,
 } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
+import AdminSidebar from './AdminSidebar';
 
 function UserManagement({ db }) {
 	const [users, setUsers] = useState([]);
@@ -103,54 +103,7 @@ function UserManagement({ db }) {
 			{/* Actual Dashboard (only for larger screens) */}
 			<div className="hidden sm:flex w-full max-w-screen mx-auto">
 				{/* Sidebar */}
-				<aside className="w-64 h-screen bg-white shadow-lg rounded-lg p-6 mr-8">
-					<h3 className="text-xl font-bold mb-4">Admin Menu</h3>
-					<nav className="flex flex-col space-y-4">
-						<Link
-							to="/admin"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Leaderboard
-						</Link>
-						<Link
-							to="/admin/users"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Users
-						</Link>
-						<Link
-							to="/admin/teams"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Teams
-						</Link>
-						<Link
-							to="/admin/quests"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Quests
-						</Link>
-						<Link
-							to="/admin/items"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Items
-						</Link>
-						<Link
-							to="/admin/registrations"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Registrations
-						</Link>
-						<Link
-							to="/admin/settings"
-							className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
-						>
-							Settings
-						</Link>
-					</nav>
-				</aside>
-
+				<AdminSidebar db={db} />
 				{/* Main Content */}
 				<div className="flex-1">
 					<div className="bg-white shadow-lg rounded-lg p-6 mb-8">
