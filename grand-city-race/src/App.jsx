@@ -122,27 +122,52 @@ function App() {
 				<Route
 					path="/dashboard"
 					element={
-						user ? <Dashboard user={user} db={db} /> : <Navigate to="/login" />
+						user ? (
+							<div className="user-theme">
+								<Dashboard user={user} db={db} />
+							</div>
+						) : (
+							<Navigate to="/login" />
+						)
 					}
 				/>
 				<Route
 					path="/chat"
 					element={
-						user ? <Chat user={user} db={db} /> : <Navigate to="/login" />
+						user ? (
+							<div className="user-theme">
+								<Chat user={user} db={db} />
+							</div>
+						) : (
+							<Navigate to="/login" />
+						)
 					}
 				/>
 				<Route
 					path="/shop"
 					element={
-						user ? <Shop user={user} db={db} /> : <Navigate to="/login" />
+						user ? (
+							<div className="user-theme">
+								<Shop user={user} db={db} />
+							</div>
+						) : (
+							<Navigate to="/login" />
+						)
 					}
 				/>
 				<Route
 					path="/solver"
 					element={
-						user ? <Solver user={user} db={db} /> : <Navigate to="/login" />
+						user ? (
+							<div className="user-theme">
+								<Solver user={user} db={db} />
+							</div>
+						) : (
+							<Navigate to="/login" />
+						)
 					}
 				/>
+
 				<Route
 					path="/admin"
 					element={

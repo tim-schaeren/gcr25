@@ -333,25 +333,28 @@ function Dashboard({ user, db }) {
 	}, [team, user, db]);
 
 	return (
-		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
-			{/* 📩 Messages Icon in top-left */}
+		<div className="bg-charcoal flex flex-col items-center justify-center min-h-screen p-6">
+			{/* Messages Icon */}
 			{team && (
-				<div className="absolute top-4 left-4">
-					<button onClick={() => navigate('/chat')} className="relative">
+				<div className="absolute top-3 left-3">
+					<button
+						onClick={() => navigate('/chat')}
+						className="border border-charcoal text-charcoal bg-parchment hover:bg-parchment rounded-full px-4 py-4 shadow-sm"
+					>
 						<svg
-							class="w-6 h-6 text-gray-800 dark:text-white"
+							className="w-8 h-8"
 							aria-hidden="true"
 							xmlns="http://www.w3.org/2000/svg"
-							width="24"
-							height="24"
+							width="22"
+							height="22"
 							fill="none"
 							viewBox="0 0 24 24"
 						>
 							<path
 								stroke="currentColor"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth="2"
 								d="M16 10.5h.01m-4.01 0h.01M8 10.5h.01M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-6.6a1 1 0 0 0-.69.275l-2.866 2.723A.5.5 0 0 1 8 18.635V17a1 1 0 0 0-1-1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
 							/>
 						</svg>
@@ -363,24 +366,29 @@ function Dashboard({ user, db }) {
 					</button>
 				</div>
 			)}
-			<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-2xl">
-				<h2 className="text-2xl font-bold text-center">Welcome, {userName}</h2>
+
+			{/* Main Card */}
+			<div className="bg-charcoal p-6 rounded-xl shadow-md border-2 shadow-lg">
+				<h2 className="text-2xl font-bold text-center text-parchment">
+					{userName}
+				</h2>
 				{team && (
-					<h3 className="text-lg text-gray-400 text-center mt-2">
-						Team: <span className="font-semibold text-white">{team.name}</span>
+					<h3 className="text-lg text-center mt-2 text-white">
+						<span>{team.name}</span>
 					</h3>
 				)}
-				<div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
+
+				{/* Quest Box */}
+				<div className="mt-5 p-5 mb-10 bg-parchment rounded-xl border-2 text-center">
 					{quest ? (
 						<>
-							<h3 className="text-xl font-semibold">This is your quest:</h3>
 							{quest.imageUrl && (
 								<div
 									onClick={() => {
 										setFullScreenImageUrl(quest.imageUrl);
 										setIsFullScreenImageOpen(true);
 									}}
-									className="cursor-pointer mx-auto mb-4"
+									className="cursor-pointer mx-auto mb-4 mt-2"
 									style={{ maxWidth: '300px' }}
 								>
 									<img
@@ -392,7 +400,7 @@ function Dashboard({ user, db }) {
 											maxHeight: '300px',
 											objectFit: 'contain',
 										}}
-										className="rounded-md"
+										className="rounded-md border-2 border-charcoal"
 									/>
 								</div>
 							)}
@@ -406,20 +414,20 @@ function Dashboard({ user, db }) {
 									/>
 								</div>
 							)}
-							<p className="text-gray-300 mt-2">{quest.text}</p>
+							<p className="mt-2 text-charcoal text-2xl">{quest.text}</p>
 							<button
 								onClick={() => navigate('/solver')}
-								className="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md"
+								className="text-lg font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
 							>
-								🧠 Solve Quest
+								Solve
 							</button>
 						</>
 					) : nextHint ? (
 						<div>
-							<h3 className="text-xl font-semibold">🔑 Next Hint:</h3>
-							<p className="text-gray-300 mt-2">{nextHint}</p>
-							<p className="text-gray-400 mt-2">
-								Solve the hint and find the quest-area to activate the quest.
+							<h3 className="mt-6 text-xl font-bold text-charcoal">Hint:</h3>
+							<p className="mt-2 text-charcoal text-xl">{nextHint}</p>
+							<p className="mt-6 mb-6 text-charcoal text-sm">
+								Find the location to activate the quest.
 							</p>
 						</div>
 					) : (
@@ -428,38 +436,38 @@ function Dashboard({ user, db }) {
 						</p>
 					)}
 				</div>
-				<div className="mt-6 p-4 bg-gray-700 rounded-lg text-center">
-					<h3 className="text-xl font-semibold">💰 Bank: {currency}</h3>
-				</div>
+
 				{locationPermission === false && (
 					<p className="mt-4 text-red-400 text-center">
 						⚠️ Location access denied. Please enable location services.
 					</p>
 				)}
-				<div className="flex flex-col sm:flex-row justify-between mt-6 space-y-2 sm:space-y-0 sm:space-x-4">
+
+				<div className="flex flex-row flex-wrap justify-between gap-4 mt-6">
 					<button
 						onClick={() => navigate('/shop')}
-						className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-md"
+						className="text-xl flex-1 min-w-[120px] px-4 py-2 bg-gold hover:text-parchment font-semibold rounded-md shadow-md hover:bg-yellow-500 transition border border-1 border-white"
 					>
-						🛒 Shop
+						Shop
 					</button>
-					{/* Hotline Button (pulls from Firestore “settings” collection) */}
+
 					<a
 						href={hotlineNumber ? `tel:${hotlineNumber}` : '#'}
-						className={`w-full sm:w-auto flex items-center justify-center font-semibold py-2 px-6 rounded-md ${
-							hotlineNumber
-								? 'bg-blue-500 hover:bg-blue-600 text-white'
-								: 'bg-gray-500 text-gray-300 cursor-not-allowed'
-						}`}
-						// If not loaded yet, prevent accidental clicks
 						onClick={(e) => {
 							if (!hotlineNumber) e.preventDefault();
 						}}
+						className={`flex-1 min-w-[120px] px-4 py-2 rounded-md shadow-md font-semibold text-center transition
+${
+	hotlineNumber
+		? 'text-lg bg-indigo text-parchment border border-1'
+		: 'text-lg bg-parchment text-charcoal border border-charcoal cursor-not-allowed'
+}`}
 					>
-						📞 Call {userName === 'Kylie' ? ' Boyfriend' : ' Hotline'}
+						Call Hotline
 					</a>
 				</div>
 			</div>
+
 			{/* Full-Screen Image Overlay */}
 			{isFullScreenImageOpen && (
 				<div

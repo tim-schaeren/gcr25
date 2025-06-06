@@ -9,7 +9,6 @@ import {
 	orderBy,
 	serverTimestamp,
 	writeBatch,
-	getDocs,
 	doc,
 	getDoc,
 } from 'firebase/firestore';
@@ -29,7 +28,7 @@ function Chat({ user, db }) {
 	// and thereafter only mark newly arriving docs.
 	const initialAdminSnapshot = useRef(true);
 
-	// 1️⃣ On mount: fetch the user's teamId
+	// On mount: fetch the user's teamId
 	useEffect(() => {
 		if (!user) return;
 		const fetchTeamId = async () => {
@@ -47,7 +46,7 @@ function Chat({ user, db }) {
 		fetchTeamId();
 	}, [user, db]);
 
-	// 2️⃣ Once we know teamId, set up two real-time listeners:
+	// Once we know teamId, set up two real-time listeners:
 	useEffect(() => {
 		if (!teamId) return;
 
@@ -60,14 +59,12 @@ function Chat({ user, db }) {
 		);
 
 		const unsubA2T = onSnapshot(a2tQuery, async (snapshot) => {
-			// --------------- PART 1: update local state ---------------
 			const allAdminMsgs = snapshot.docs.map((d) => ({
 				id: d.id,
 				...d.data(),
 			}));
 			setAdminToTeamMsgs(allAdminMsgs);
 
-			// --------------- PART 2: decide what to mark as “read” ---------------
 			if (initialAdminSnapshot.current) {
 				// This is the very first time we get a snapshot after mounting.
 				// Let’s find all admin→team messages that are still unread (readByTeam === false),
@@ -129,7 +126,7 @@ function Chat({ user, db }) {
 			}
 		});
 
-		// (B) team → admin: normal listener for messages that this team sends to admin
+		// team → admin: normal listener for messages that this team sends to admin
 		const t2aQuery = query(
 			collection(db, 'messages'),
 			where('from', '==', teamId),
@@ -150,7 +147,7 @@ function Chat({ user, db }) {
 		};
 	}, [db, teamId]);
 
-	// 3️⃣ Merge & sort whenever either stream changes, then auto-scroll
+	// Merge & sort whenever either stream changes, then auto-scroll
 	useEffect(() => {
 		const combined = [...adminToTeamMsgs, ...teamToAdminMsgs];
 		combined.sort((a, b) => {
@@ -168,7 +165,7 @@ function Chat({ user, db }) {
 		});
 	}, [adminToTeamMsgs, teamToAdminMsgs]);
 
-	// 4️⃣ Sending a new message (team → admin)
+	// Sending a new message (team → admin)
 	const sendMessage = async () => {
 		if (!newMessageText.trim() || !teamId) return;
 		await addDoc(collection(db, 'messages'), {
@@ -183,22 +180,21 @@ function Chat({ user, db }) {
 	};
 
 	return (
-		<div className="relative h-screen bg-gray-100 text-gray-900">
+		<div className="relative h-screen bg-parchment">
 			{/* ── HEADER (fixed to top) ───────────────────────── */}
-			<div className="fixed top-0 left-0 right-0 h-16 bg-white shadow-md flex items-center px-4 z-10">
+			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16 shadow-md flex items-center px-4 z-10">
 				<button
 					onClick={() => navigate('/dashboard')}
-					className="mr-4 text-blue-500 hover:text-blue-700"
+					className="mr-4 text-lg text-parchment font-bold bg-charcoal"
 				>
 					← Back
 				</button>
-				<h1 className="text-lg font-semibold">Chat with Admin</h1>
 			</div>
 
 			{/* ── MESSAGE LIST (fixed between header & footer) ─── */}
-			<div className="fixed top-16 bottom-16 left-0 right-0 overflow-y-auto px-2">
+			<div className="bg-parchment fixed top-16 bottom-16 left-0 right-0 overflow-y-auto px-2">
 				{mergedMessages.length === 0 ? (
-					<div className="flex h-full items-center justify-center text-gray-500">
+					<div className="flex h-full items-center justify-center ">
 						Say hello to your admins!
 					</div>
 				) : (
@@ -207,15 +203,15 @@ function Chat({ user, db }) {
 						return (
 							<div
 								key={msg.id}
-								className={`mb-3 flex ${
+								className={`mb-3 flex text-lg ${
 									isAdminMessage ? 'justify-start' : 'justify-end'
 								}`}
 							>
 								<div
-									className={`max-w-[70%] p-2 rounded-lg ${
+									className={`max-w-[90%] px-5 py-2 rounded-lg ${
 										isAdminMessage
-											? 'bg-blue-500 text-white'
-											: 'bg-green-500 text-white'
+											? 'bg-blue-600 text-parchment text-left'
+											: 'bg-green-600 text-parchment text-right'
 									}`}
 								>
 									<p className="break-words">{msg.text}</p>
@@ -224,7 +220,7 @@ function Chat({ user, db }) {
 											isAdminMessage ? '' : 'justify-end'
 										}`}
 									>
-										<span className="text-gray-200">
+										<span>
 											{msg.timestamp
 												? new Date(msg.timestamp.toMillis()).toLocaleTimeString(
 														[],
@@ -236,7 +232,7 @@ function Chat({ user, db }) {
 												: ''}
 										</span>
 										{!isAdminMessage && msg.readByAdmin && (
-											<span className="ml-2 text-green-200">✔️</span>
+											<span className="ml-2">(seen)</span>
 										)}
 									</div>
 								</div>
@@ -248,10 +244,10 @@ function Chat({ user, db }) {
 			</div>
 
 			{/* ── INPUT BAR (fixed to bottom) ───────────────────── */}
-			<div className="fixed bottom-0 left-0 right-0 h-16 border-t border-gray-300 bg-white p-2 flex items-center px-4 z-10">
+			<div className="bg-charcoal fixed bottom-0 left-0 right-0 h-16 p-2 flex items-center px-4 z-10">
 				<input
 					type="text"
-					className="flex-grow p-2 border border-gray-300 rounded-lg"
+					className="flex-grow p-2 border border-gray-300 rounded-lg text-charcoal"
 					placeholder="Type your message…"
 					value={newMessageText}
 					onChange={(e) => setNewMessageText(e.target.value)}
@@ -271,7 +267,7 @@ function Chat({ user, db }) {
 							: 'bg-gray-300 text-gray-500 cursor-not-allowed'
 					}`}
 				>
-					Send
+					send
 				</button>
 			</div>
 		</div>

@@ -198,14 +198,12 @@ function Shop({ user, db }) {
 					</div>
 				</div>
 			)}
-			<div className="min-h-screen bg-gray-900 text-white p-6">
+			<div className="min-h-screen p-6">
 				<div className="max-w-4xl mx-auto">
-					<h2 className="text-3xl font-bold text-center mb-4">
+					<h2 className="text-3xl mt-10 font-bold text-center mb-4">
 						🛒 In-Game Shop
 					</h2>
-					<h3 className="text-xl text-center mb-8">
-						Your Team's Balance: 💰 {currency}
-					</h3>
+					<h3 className="text-xl text-center mb-8">In the Bank: {currency}</h3>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{items.length === 0 ? (
 							<p className="text-center">No items found.</p>

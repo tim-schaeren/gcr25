@@ -1,3 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Base Theme Variables === */
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -7,50 +12,58 @@
   color: #213547;
   background-color: #ffffff;
 
-  font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
+/* === Body Styling === */
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #fdfcf8;
+  background-image: url('/45-degree-fabric-light.png');
+  background-size: cover;
+  background-repeat: repeat;
+  background-blend-mode: multiply;
 }
 
+/* === Link Styling === */
+a {
+  @apply font-medium text-charcoal no-underline hover:underline;
+}
+
+/* === Heading Styling === */
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
 }
 
+/* === Button Reset === */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #f9f9f9;
-  color: #213547;
-  cursor: pointer;
-  transition: border-color 0.25s;
+  @apply rounded-md border border-transparent px-4 py-2 text-base font-medium bg-neutral-100 text-charcoal hover:border-gold transition;
 }
-button:hover {
-  border-color: #646cff;
+
+/* === User Themes === */
+@layer base {
+  .user-theme {
+    @apply font-almendra text-parchment bg-charcoal;
+  }
+
+  .user-theme h1,
+  .user-theme h2,
+  .user-theme h3,
+  .user-theme h4,
+  .user-theme h5,
+  .user-theme h6 {
+    @apply font-almendra;
+  }
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+
+/* === Admin Theme (optional placeholder) === */
+@layer base {
+  .admin-theme {
+    @apply font-sans text-black bg-white;
+  }
 }

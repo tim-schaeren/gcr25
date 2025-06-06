@@ -75,7 +75,7 @@ function Solver({ user, db }) {
 
 		// If none of the validAnswers match, show error
 		if (!validAnswers.includes(userAnswer)) {
-			setErrorMessage('Incorrect answer! Try again.');
+			setErrorMessage('Incorrect answer!');
 			return;
 		}
 
@@ -133,31 +133,33 @@ function Solver({ user, db }) {
 	};
 
 	return (
-		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
+		<div className="flex flex-col items-center justify-center min-h-screen text-white p-6">
+			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16  flex items-center px-4 z-10">
+				<button
+					onClick={() => navigate('/dashboard')}
+					className="mr-4 text-lg text-parchment font-bold bg-charcoal"
+				>
+					← Back
+				</button>
+			</div>
 			{gameOver ? (
-				<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md text-center">
+				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center">
 					<h2 className="text-3xl font-bold mb-4">🎉 Congratulations! 🎉</h2>
 					<p className="mb-6">Your team has completed the race!</p>
 					<button
 						onClick={() => navigate('/dashboard')}
-						className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition"
+						className="w-full hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition"
 					>
 						Return to Dashboard
 					</button>
 				</div>
 			) : nextHint ? (
-				<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md text-center">
+				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center border border-parchment">
 					<h3 className="text-2xl font-semibold mb-4">Correct!</h3>
-					<p className="mb-4">
-						Here’s your hint for the location of the next QR code:
-					</p>
-					<div className="p-4 bg-gray-700 rounded-md mb-6">
-						<p className="text-lg">{nextHint}</p>
-					</div>
-					<p className="text-gray-400">Redirecting to Dashboard...</p>
+					<p className="mb-4">Loading your next hint!</p>
 				</div>
 			) : (
-				<div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md text-center">
+				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center border border-1 border-parchment">
 					{quest ? (
 						<>
 							<h3 className="text-2xl font-semibold mb-4">{quest.text}</h3>
@@ -168,12 +170,12 @@ function Solver({ user, db }) {
 								type="text"
 								value={answer}
 								onChange={(e) => setAnswer(e.target.value)}
-								placeholder="Enter your answer"
+								placeholder="your answer"
 								className="w-full p-2 border border-gray-600 rounded-md mb-4 bg-gray-700 text-white focus:outline-none focus:border-blue-500"
 							/>
 							<button
 								onClick={handleAnswerSubmit}
-								className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition"
+								className="w-full bg-green-800 hover:bg-green-600 text-white text-lg font-semibold py-2 px-4 rounded-lg transition"
 							>
 								Submit
 							</button>
