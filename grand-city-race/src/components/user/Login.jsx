@@ -75,7 +75,7 @@ function Login({ auth }) {
 			<div className="bg-gray-800 shadow-xl rounded-xl p-8 w-full max-w-md">
 				{/* Title */}
 				<h2 className="text-3xl font-semibold text-center text-white mb-6">
-					🏁 <span className="text-white">Login to Grand City Race</span>
+					🏁 <span className="text-white">Login to GCR 25</span>
 				</h2>
 
 				{/* Login Form */}
@@ -118,13 +118,15 @@ function Login({ auth }) {
 						Login
 					</button>
 
-					{/* Forgot Password Button */}
-					<button
-						onClick={handleResetPassword}
-						className="w-full text-center bg-transparent border border-gray-500 text-gray-300 font-bold py-3 rounded-lg shadow-md hover:bg-gray-700 transition duration-300"
-					>
-						Forgot Password?
-					</button>
+					{/* Forgot Password Button (temporarily hidden) */}
+					{false && (
+						<button
+							onClick={handleResetPassword}
+							className="w-full text-center bg-transparent border border-gray-500 text-gray-300 font-bold py-3 rounded-lg shadow-md hover:bg-gray-700 transition duration-300"
+						>
+							Forgot Password?
+						</button>
+					)}
 				</form>
 
 				{/* Success/Error Messages */}

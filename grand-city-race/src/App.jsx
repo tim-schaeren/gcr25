@@ -38,6 +38,7 @@ function App() {
 	const [user, setUser] = useState(null);
 	const [isAdmin, setIsAdmin] = useState(null);
 	const [initialRedirect, setInitialRedirect] = useState(false);
+	const [signUpActive, setSignUpActive] = useState('');
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -76,6 +77,23 @@ function App() {
 		navigate('/login');
 	};
 
+	// Fetch signup setting
+	useEffect(() => {
+		const fetchSignUpActive = async () => {
+			try {
+				const signUpActiveRef = doc(db, 'settings', 'signUpActive');
+				const signUpActiveSnap = await getDoc(signUpActiveRef);
+				if (signUpActiveSnap.exists()) {
+					setSignUpActive(!!signUpActiveSnap.data().value);
+				}
+			} catch (error) {
+				console.error('Error fetching signup settings:', error);
+			}
+		};
+
+		fetchSignUpActive();
+	}, [db]);
+
 	return (
 		<div>
 			{user && (
@@ -87,7 +105,18 @@ function App() {
 				</button>
 			)}
 			<Routes>
-				<Route path="/" element={<EventSignup db={db} />} />
+				{signUpActive !== '' && (
+					<Route
+						path="/"
+						element={
+							signUpActive === true ? (
+								<EventSignup db={db} />
+							) : (
+								<Login auth={auth} />
+							)
+						}
+					/>
+				)}
 				<Route path="/login" element={<Login auth={auth} />} />
 				<Route path="/event-signup" element={<EventSignup db={db} />} />
 				<Route

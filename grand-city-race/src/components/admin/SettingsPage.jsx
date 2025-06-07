@@ -24,7 +24,7 @@ function SettingsPage({ db }) {
 	// Open edit modal and pre-populate the field.
 	const openEditModal = (setting) => {
 		setSelectedSetting(setting);
-		setNewSettingValue(setting.value || '');
+		setNewSettingValue(setting.value ?? '');
 		setEditModalOpen(true);
 	};
 
@@ -85,7 +85,9 @@ function SettingsPage({ db }) {
 											{setting.name}
 										</td>
 										<td className="border border-gray-300 p-4 text-black">
-											{setting.value}
+											{typeof setting.value === 'boolean'
+												? String(setting.value)
+												: setting.value}
 										</td>
 										<td className="border border-gray-300 p-4 text-black font-semibold">
 											<button
@@ -111,12 +113,24 @@ function SettingsPage({ db }) {
 							Edit "{selectedSetting.id}"
 						</h3>
 						<label className="block mb-2 font-semibold">Value</label>
-						<input
-							type="text"
-							value={newSettingValue}
-							onChange={(e) => setNewSettingValue(e.target.value)}
-							className="w-full p-2 border rounded-md mb-4"
-						/>
+						{typeof selectedSetting.value === 'boolean' ? (
+							<div className="flex items-center space-x-2 mb-4">
+								<input
+									type="checkbox"
+									checked={newSettingValue === true}
+									onChange={(e) => setNewSettingValue(e.target.checked)}
+								/>
+								<span>{newSettingValue ? 'true ✅' : 'false ❌'}</span>
+							</div>
+						) : (
+							<input
+								type="text"
+								value={newSettingValue}
+								onChange={(e) => setNewSettingValue(e.target.value)}
+								className="w-full p-2 border rounded-md mb-4"
+							/>
+						)}
+
 						<div className="flex justify-end space-x-3">
 							<button
 								onClick={() => setEditModalOpen(false)}
