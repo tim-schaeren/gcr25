@@ -646,7 +646,6 @@ function QuestManagement({ db, storage }) {
 									<th className="border border-gray-300 p-4 text-black">
 										Name
 									</th>
-									<th className="border border-gray-300 p-4 text-black">ID</th>
 									<th className="border border-gray-300 p-4 text-black">
 										Actions
 									</th>
@@ -673,9 +672,6 @@ function QuestManagement({ db, storage }) {
 												</td>
 												<td className="border border-gray-300 p-4 text-black font-semibold">
 													{quest.name}
-												</td>
-												<td className="border border-gray-300 p-4 text-black font-semibold">
-													{quest.id}
 												</td>
 												<td className="border border-gray-300 p-4 text-black font-semibold">
 													<button

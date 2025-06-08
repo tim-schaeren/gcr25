@@ -34,11 +34,19 @@ function UserManagement({ db }) {
 				id: doc.id,
 				...doc.data(),
 			}));
-			//userList.sort((a, b) => b.team.name - a.team.name)
-			setUsers(userList);
+
+			// Sort after both users and teams are available
+			setUsers((prevUsers) => {
+				const sorted = [...userList].sort((a, b) => {
+					const teamA = teams.find((t) => t.id === a.teamId)?.name || '';
+					const teamB = teams.find((t) => t.id === b.teamId)?.name || '';
+					return teamA.localeCompare(teamB);
+				});
+				return sorted;
+			});
 		});
 		return () => unsubscribe();
-	}, [db]);
+	}, [db, teams]); // Add `teams` as a dependency so sort happens after they're loaded
 
 	// Fetch teams via onSnapshot.
 	useEffect(() => {
