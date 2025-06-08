@@ -233,35 +233,32 @@ function Dashboard({ user, db }) {
 	// If the user is within the fence and no quest is active, it activates the quest.
 	// If the user leaves the fence, it clears an active quest.
 	useEffect(() => {
-		if (!user || !db) return;
+		if (!user || !db || !team) return;
 
 		const checkQuestActivation = async () => {
-			if (!team) return;
 			if (!navigator.geolocation) return;
+
 			navigator.geolocation.getCurrentPosition(
-				async (position) => {
-					const loc = {
-						lat: position.coords.latitude,
-						lng: position.coords.longitude,
-					};
-					setCurrentLocation(loc); // update local state
+				async ({ coords }) => {
+					const loc = { lat: coords.latitude, lng: coords.longitude };
+					setCurrentLocation(loc);
 
 					const teamRef = doc(db, 'teams', team.id);
 
-					// If a quest is already active, verify that the user is still within its fence.
+					// If a quest is already active, verify they’re still inside its fence
 					if (team.progress?.currentQuest) {
-						const questRef = doc(db, 'quests', team.progress.currentQuest);
-						const questSnap = await getDoc(questRef);
+						const questSnap = await getDoc(
+							doc(db, 'quests', team.progress.currentQuest)
+						);
 						if (questSnap.exists()) {
-							const questData = questSnap.data();
-							const distance = getDistanceFromLatLonInMeters(
+							const { location } = questSnap.data();
+							const dist = getDistanceFromLatLonInMeters(
 								loc.lat,
 								loc.lng,
-								questData.location.lat,
-								questData.location.lng
+								location.lat,
+								location.lng
 							);
-							// If the user left the fence, clear the active quest.
-							if (distance > questData.location.fence) {
+							if (dist > location.fence) {
 								await updateDoc(teamRef, { 'progress.currentQuest': '' });
 								setTeam((prev) => ({
 									...prev,
@@ -271,65 +268,54 @@ function Dashboard({ user, db }) {
 							}
 						}
 					} else {
-						// No active quest – determine the next quest.
-						let nextSequence = 1;
-						if (
-							team.progress?.previousQuests &&
-							team.progress.previousQuests.length > 0
-						) {
-							const lastQuestId =
-								team.progress.previousQuests[
-									team.progress.previousQuests.length - 1
-								];
-							const lastQuestRef = doc(db, 'quests', lastQuestId);
-							const lastQuestSnap = await getDoc(lastQuestRef);
-							if (lastQuestSnap.exists()) {
-								const lastQuestData = lastQuestSnap.data();
-								nextSequence = lastQuestData.sequence + 1;
-							}
+						// No active quest → figure out next
+						let nextSeq = 1;
+						if (team.progress?.previousQuests?.length) {
+							const lastId = team.progress.previousQuests.slice(-1)[0];
+							const lastSnap = await getDoc(doc(db, 'quests', lastId));
+							if (lastSnap.exists()) nextSeq = lastSnap.data().sequence + 1;
 						}
-						// Query for the quest with the nextSequence.
-						const questsRef = collection(db, 'quests');
+
 						const qNext = query(
-							questsRef,
-							where('sequence', '==', nextSequence)
+							collection(db, 'quests'),
+							where('sequence', '==', nextSeq)
 						);
-						const nextSnap = await getDocs(qNext);
-						if (!nextSnap.empty) {
-							const nextDoc = nextSnap.docs[0];
-							const nextQuestData = nextDoc.data();
-							const distance = getDistanceFromLatLonInMeters(
+						const nextDocs = await getDocs(qNext);
+						if (!nextDocs.empty) {
+							const nextData = nextDocs.docs[0].data();
+							const dist = getDistanceFromLatLonInMeters(
 								loc.lat,
 								loc.lng,
-								nextQuestData.location.lat,
-								nextQuestData.location.lng
+								nextData.location.lat,
+								nextData.location.lng
 							);
-							// If the user is within the quest fence, activate this quest.
-							if (distance <= nextQuestData.location.fence) {
+							if (dist <= nextData.location.fence) {
 								await updateDoc(teamRef, {
-									'progress.currentQuest': nextDoc.id,
+									'progress.currentQuest': nextDocs.docs[0].id,
 								});
 								setTeam((prev) => ({
 									...prev,
-									progress: { ...prev.progress, currentQuest: nextDoc.id },
+									progress: {
+										...prev.progress,
+										currentQuest: nextDocs.docs[0].id,
+									},
 								}));
-								setQuest({ id: nextDoc.id, ...nextQuestData });
+								setQuest({ id: nextDocs.docs[0].id, ...nextData });
 							}
 						}
 					}
 				},
-				(err) => {
-					console.error('Error checking quest activation:', err);
-				},
+				(err) => console.error('Error checking quest activation:', err),
 				{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
 			);
 		};
 
-		const activationInterval = setInterval(() => {
-			checkQuestActivation();
-		}, 5000);
+		// **run immediately** when team/user/db is ready
+		checkQuestActivation();
 
-		return () => clearInterval(activationInterval);
+		// then keep checking every 5s
+		const interval = setInterval(checkQuestActivation, 5000);
+		return () => clearInterval(interval);
 	}, [team, user, db]);
 
 	return (
