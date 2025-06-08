@@ -1,4 +1,3 @@
-// src/components/Compass.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import compassBase from '../../assets/compass_base.png';
@@ -13,7 +12,7 @@ import {
 } from 'firebase/firestore';
 
 // Throttle utility
-function throttle(fn, limit) {
+function defaultThrottle(fn, limit) {
 	let lastCall = 0;
 	return (...args) => {
 		const now = Date.now();
@@ -38,20 +37,7 @@ function normalizeHeading(event) {
 	// Compensate for screen orientation
 	const screenAngle =
 		window.screen.orientation?.angle ?? window.orientation ?? 0;
-	const final = (hdg + screenAngle + 360) % 360;
-	console.log(
-		'raw alpha:',
-		event.alpha,
-		'absolute:',
-		event.absolute,
-		'webkitHeading:',
-		event.webkitCompassHeading,
-		'screenAngle:',
-		screenAngle,
-		'final heading:',
-		final
-	);
-	return final;
+	return (hdg + screenAngle + 360) % 360;
 }
 
 // Math helpers
@@ -71,7 +57,13 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 	const [arrivalReached, setArrivalReached] = useState(false);
 
 	useEffect(() => {
-		if (!userLocation || !targetLocation || deviceHeading == null) return;
+		if (
+			!userLocation ||
+			!targetLocation ||
+			deviceHeading == null ||
+			arrivalReached
+		)
+			return;
 
 		// Calculate bearing to target
 		const dLon = toRadians(targetLocation.lng - userLocation.lng);
@@ -81,8 +73,7 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		const x =
 			Math.cos(φ1) * Math.sin(φ2) -
 			Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLon);
-		let brng = toDegrees(Math.atan2(y, x));
-		brng = (brng + 360) % 360;
+		let brng = (toDegrees(Math.atan2(y, x)) + 360) % 360;
 
 		// Haversine distance
 		const R = 6371000;
@@ -96,11 +87,9 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 		const dist = R * c;
 
-		// Determine needle rotation (bearing relative to deviceHeading)
+		// Needle rotation
 		const rawRotation = brng - deviceHeading;
-		const offset = 0;
-		let newRotation = (((rawRotation + offset) % 360) + 360) % 360;
-
+		let newRotation = ((rawRotation % 360) + 360) % 360;
 		// Smooth large jumps
 		if (prevRotationRef.current !== null) {
 			let diff = newRotation - prevRotationRef.current;
@@ -113,12 +102,12 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		setNeedleRotation(newRotation);
 		setDistance(dist);
 
-		// Arrival detection with jitter guard
-		const radius = targetLocation.fence != null ? targetLocation.fence : fence;
+		// Arrival detection
+		const radius = targetLocation.fence ?? fence;
 		if (dist <= radius - 5) {
 			setArrivalReached(true);
 		}
-	}, [userLocation, targetLocation, deviceHeading, fence]);
+	}, [userLocation, targetLocation, deviceHeading, fence, arrivalReached]);
 
 	return { needleRotation, distance, arrivalReached };
 }
@@ -169,15 +158,15 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 	const [userLocation, setUserLocation] = useState(null);
 	const [deviceHeading, setDeviceHeading] = useState(null);
 
-	// Geolocation with throttling
+	// Geolocation
 	useEffect(() => {
 		if (!navigator.geolocation) {
 			setPositionError('Geolocation not supported by this browser.');
 			return;
 		}
-		const throttled = throttle((pos) => {
+		const throttled = defaultThrottle((pos) => {
 			setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-		}, 100);
+		}, 200);
 
 		const id = navigator.geolocation.watchPosition(
 			throttled,
@@ -190,21 +179,19 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 		return () => navigator.geolocation.clearWatch(id);
 	}, []);
 
-	// Orientation with normalize and throttling
+	// Device orientation
 	useEffect(() => {
-		const handler = throttle((event) => {
+		const handler = defaultThrottle((event) => {
 			const hdg = normalizeHeading(event);
 			if (hdg != null) setDeviceHeading(hdg);
-		}, 100);
+		}, 200);
 
 		if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
 			DeviceOrientationEvent.requestPermission()
 				.then((res) => {
-					if (res === 'granted') {
+					if (res === 'granted')
 						window.addEventListener('deviceorientation', handler, true);
-					} else {
-						setOrientationError('Compass permission denied.');
-					}
+					else setOrientationError('Compass permission denied.');
 				})
 				.catch((err) => {
 					console.error(err);
@@ -223,16 +210,12 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 		10
 	);
 
-	// On arrival, trigger onUsed and navigate
-	useEffect(() => {
-		if (arrivalReached) {
-			onUsed?.();
-			const t = setTimeout(() => navigate('/dashboard'), 5000);
-			return () => clearTimeout(t);
-		}
-	}, [arrivalReached, onUsed, navigate]);
-
 	const hasActive = Boolean(team.progress?.currentQuest);
+
+	const handleContinue = () => {
+		onUsed?.();
+		navigate('/dashboard');
+	};
 
 	// Error display
 	if (positionError || orientationError || questError) {
@@ -281,7 +264,7 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 	}
 
 	return (
-		<div className="relative flex flex-col items-center">
+		<div className="relative flex flex-col items-center p-4">
 			<button
 				aria-label="Close compass"
 				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
@@ -289,11 +272,13 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 			>
 				✕
 			</button>
+
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
 				<img src={compassBase} alt="Compass base" className="w-full h-full" />
 				<img
 					src={compassNeedle}
-					alt="Compass needle"
+					alt=""
+					role="presentation"
 					style={{
 						width: '55%',
 						height: '80%',
@@ -305,15 +290,22 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 						pointerEvents: 'none',
 					}}
 				/>
+
 				{arrivalReached && (
-					<div
-						className="absolute bg-green-600 bg-opacity-80 text-white p-2 rounded"
-						style={{ bottom: '10%', width: '100%', textAlign: 'center' }}
-					>
-						You've reached your destination!
+					<div className="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center p-4">
+						<div className="text-4xl mb-4">
+							🎉 You’ve reached your destination! 🎉
+						</div>
+						<button
+							onClick={handleContinue}
+							className="px-4 py-2 bg-blue-600 text-white rounded shadow"
+						>
+							Continue
+						</button>
 					</div>
 				)}
 			</div>
+
 			<p className="mt-4 font-bold text-gray-300 text-3xl">
 				{distance != null ? `${Math.round(distance)} m` : '-- m'}
 			</p>
