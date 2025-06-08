@@ -30,9 +30,7 @@ function normalizeHeading(event) {
 	// iOS Safari provides magnetic heading directly
 	if (typeof event.webkitCompassHeading === 'number') {
 		hdg = event.webkitCompassHeading;
-	}
-	// Otherwise, use absolute alpha (Chrome/Firefox)
-	else if (event.absolute === true && typeof event.alpha === 'number') {
+	} else if (event.absolute === true && typeof event.alpha === 'number') {
 		hdg = 360 - event.alpha;
 	} else {
 		return null;
@@ -98,9 +96,9 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 		const dist = R * c;
 
-		// Determine needle rotation (deviceHeading relative to bearing)
-		const rawRotation = deviceHeading - brng;
-		const offset = 90;
+		// Determine needle rotation (bearing relative to deviceHeading)
+		const rawRotation = brng - deviceHeading;
+		const offset = 0;
 		let newRotation = (((rawRotation + offset) % 360) + 360) % 360;
 
 		// Smooth large jumps
@@ -303,7 +301,7 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 						top: '11%',
 						left: '23%',
 						transform: `rotate(${needleRotation}deg)`,
-						transition: 'transform 0.5s insideText;',
+						transition: 'transform 0.5s ease-out',
 						pointerEvents: 'none',
 					}}
 				/>
