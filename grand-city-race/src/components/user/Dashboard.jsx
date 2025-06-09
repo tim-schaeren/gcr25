@@ -11,7 +11,11 @@ import {
 	getDocs,
 	where,
 	onSnapshot,
+	runTransaction,
 } from 'firebase/firestore';
+
+// CONSTANTS
+const CLUE_PRICE = 10;
 
 // Helper functions for distance calculation.
 function deg2rad(deg) {
@@ -69,20 +73,21 @@ function Dashboard({ user, db }) {
 					const teamSnap = await getDoc(teamRef);
 					if (teamSnap.exists()) {
 						const teamData = teamSnap.data();
-						setTeam({ id: userData.teamId, ...teamData });
+						// ensure cluePurchased is defined
+						const progress = {
+							...(teamData.progress || {}),
+							cluePurchased: teamData.progress?.cluePurchased || [],
+						};
+						setTeam({ id: userData.teamId, ...teamData, progress });
 						setCurrency(teamData.currency || 0);
 
 						// If there is an active quest, fetch its details.
-						if (teamData.progress?.currentQuest) {
-							const questRef = doc(
-								db,
-								'quests',
-								teamData.progress.currentQuest
-							);
+						if (progress.currentQuest) {
+							const questRef = doc(db, 'quests', progress.currentQuest);
 							const questSnap = await getDoc(questRef);
 							if (questSnap.exists()) {
 								setQuest({
-									id: teamData.progress.currentQuest,
+									id: progress.currentQuest,
 									...questSnap.data(),
 								});
 							}
@@ -318,6 +323,51 @@ function Dashboard({ user, db }) {
 		return () => clearInterval(interval);
 	}, [team, user, db]);
 
+	// Handler to buy clue
+	const handleBuyClue = async () => {
+		if (!quest || !team) return;
+		if (currency < CLUE_PRICE) {
+			alert('Not enough currency');
+			return;
+		}
+		try {
+			await runTransaction(db, async (transaction) => {
+				const teamRef = doc(db, 'teams', team.id);
+				const teamDoc = await transaction.get(teamRef);
+				if (!teamDoc.exists()) throw new Error('Team not found');
+				const data = teamDoc.data();
+				const current = data.currency || 0;
+				if (current < CLUE_PRICE) throw new Error('NOT_ENOUGH_CURRENCY');
+
+				const newCurrency = current - CLUE_PRICE;
+				const purchased = data.progress?.cluePurchased || [];
+				const newClues = [...purchased, quest.id];
+
+				transaction.update(teamRef, {
+					currency: newCurrency,
+					'progress.cluePurchased': newClues,
+				});
+			});
+
+			// Update local state once transaction commits
+			setCurrency((c) => c - CLUE_PRICE);
+			setTeam((t) => ({
+				...t,
+				currency: (t.currency || 0) - CLUE_PRICE,
+				progress: {
+					...t.progress,
+					cluePurchased: [...(t.progress?.cluePurchased || []), quest.id],
+				},
+			}));
+		} catch (e) {
+			if (e.message === 'NOT_ENOUGH_CURRENCY') {
+				alert('Not enough currency');
+			} else {
+				console.error('Failed to purchase clue:', e);
+			}
+		}
+	};
+
 	return (
 		<div className="bg-charcoal flex flex-col items-center justify-center min-h-screen p-6">
 			{/* Messages Icon */}
@@ -365,7 +415,7 @@ function Dashboard({ user, db }) {
 				)}
 
 				{/* Quest Box */}
-				<div className="mt-5 p-5 mb-10 bg-parchment rounded-xl border-2 text-center">
+				<div className="mt-5 p-5 mb-10 bg-parchment rounded-xl;border-2 text-center">
 					{quest ? (
 						<>
 							{quest.imageUrl && (
@@ -407,6 +457,17 @@ function Dashboard({ user, db }) {
 							>
 								Solve
 							</button>
+
+							{team.progress.cluePurchased.includes(quest.id) ? (
+								<p className="mt-4 text-gray-800 text-lg">Clue: {quest.clue}</p>
+							) : (
+								<button
+									onClick={handleBuyClue}
+									className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
+								>
+									Buy Clue – {CLUE_PRICE}$
+								</button>
+							)}
 						</>
 					) : nextHint ? (
 						<div>
@@ -422,6 +483,13 @@ function Dashboard({ user, db }) {
 						</p>
 					)}
 				</div>
+
+				{/* Team Currency Display */}
+				{team && (
+					<div className="mb-6 text-white text-center text-xl font-bold">
+						Bank: {currency}💰
+					</div>
+				)}
 
 				{locationPermission === false && (
 					<p className="mt-4 text-red-400 text-center">
@@ -443,11 +511,11 @@ function Dashboard({ user, db }) {
 							if (!hotlineNumber) e.preventDefault();
 						}}
 						className={`flex-1 min-w-[120px] px-4 py-2 rounded-md shadow-md font-semibold text-center transition
-${
-	hotlineNumber
-		? 'text-lg bg-indigo text-parchment border border-1'
-		: 'text-lg bg-parchment text-charcoal border border-charcoal cursor-not-allowed'
-}`}
+						${
+							hotlineNumber
+								? 'text-lg bg-indigo text-parchment border border-1'
+								: 'text-lg bg-parchment text-charcoal border border-charcoal cursor-not-allowed'
+						}`}
 					>
 						Call Hotline
 					</a>

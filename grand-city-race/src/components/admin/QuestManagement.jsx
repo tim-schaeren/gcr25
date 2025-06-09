@@ -128,6 +128,7 @@ function QuestManagement({ db, storage }) {
 	const [newQuestHint, setNewQuestHint] = useState('');
 	const [newQuestText, setNewQuestText] = useState('');
 	const [newQuestAnswers, setNewQuestAnswers] = useState(['']);
+	const [newQuestClue, setNewQuestClue] = useState('');
 	// New state for location and fence in the add modal.
 	const [newQuestLocation, setNewQuestLocation] = useState({
 		lat: 46.9481,
@@ -152,6 +153,7 @@ function QuestManagement({ db, storage }) {
 	const [editQuestHint, setEditQuestHint] = useState('');
 	const [editQuestText, setEditQuestText] = useState('');
 	const [editQuestAnswers, setEditQuestAnswers] = useState([]);
+	const [editQuestClue, setEditQuestClue] = useState('');
 	// New state for location/fence in the edit modal.
 	const [editQuestLocation, setEditQuestLocation] = useState({
 		lat: 46.9481,
@@ -267,6 +269,7 @@ function QuestManagement({ db, storage }) {
 				? [quest.answer]
 				: ['']
 		);
+		setEditQuestClue(quest.clue || '');
 		// Prepopulate media info as before…
 		if (quest.imageUrl) {
 			setEditQuestMediaType('image');
@@ -351,13 +354,14 @@ function QuestManagement({ db, storage }) {
 			}
 		}
 
-		// ── Include the new location data in the quest document ──
+		// Set the new values
 		batch.set(newQuestRef, {
 			name: newQuestName,
 			sequence: newSeq,
 			hint: newQuestHint,
 			text: newQuestText,
 			answer: newQuestAnswers,
+			clue: newQuestClue,
 			imageUrl: newQuestMediaType === 'image' ? imageUrl : '',
 			imagePath: newQuestMediaType === 'image' ? imagePath : '',
 			videoUrl: newQuestMediaType === 'video' ? videoUrl : '',
@@ -377,6 +381,7 @@ function QuestManagement({ db, storage }) {
 		setNewQuestHint('');
 		setNewQuestText('');
 		setNewQuestAnswers(['']);
+		setNewQuestClue('');
 		setNewQuestMediaFile(null);
 		setNewQuestMediaPreview(null);
 		setNewQuestMediaType(null);
@@ -388,7 +393,7 @@ function QuestManagement({ db, storage }) {
 		setIsUploading(false);
 	};
 
-	// ── DELETE QUEST (no changes needed for location) ──
+	// Delete quests
 	const deleteQuest = async () => {
 		if (!selectedQuestForDelete) return;
 
@@ -429,7 +434,7 @@ function QuestManagement({ db, storage }) {
 		setSelectedQuestForDelete(null);
 	};
 
-	// ── UPDATE QUEST ──
+	// Update quests
 	const updateQuest = async () => {
 		setIsUploading(true);
 		if (!selectedQuestForEdit) return;
@@ -535,13 +540,14 @@ function QuestManagement({ db, storage }) {
 		const effectiveLength = filteredQuests.length + 1;
 		const clampedSeq = Math.max(1, Math.min(newSeq, effectiveLength));
 
-		// ── Update quest data including the new location info ──
+		// Update quest data
 		const updatedQuest = {
 			...selectedQuestForEdit,
 			name: editQuestName,
 			hint: editQuestHint,
 			text: editQuestText,
 			answer: editQuestAnswers,
+			clue: editQuestClue,
 			sequence: clampedSeq,
 			imageUrl: updatedImageUrl,
 			imagePath: updatedImagePath,
@@ -569,6 +575,7 @@ function QuestManagement({ db, storage }) {
 				hint: quest.hint,
 				text: quest.text,
 				answer: quest.answer,
+				clue: quest.clue,
 				imageUrl: quest.imageUrl || '',
 				imagePath: quest.imagePath || '',
 				videoUrl: quest.videoUrl || '',
@@ -585,6 +592,7 @@ function QuestManagement({ db, storage }) {
 		setEditQuestHint('');
 		setEditQuestText('');
 		setEditQuestAnswers('');
+		setEditQuestClue('');
 		setEditQuestMediaFile(null);
 		setEditQuestMediaPreview(null);
 		setEditQuestMediaType(null);
@@ -739,9 +747,16 @@ function QuestManagement({ db, storage }) {
 						/>
 						<input
 							type="text"
-							placeholder="Text"
+							placeholder="Question or Riddle"
 							value={newQuestText}
 							onChange={(e) => setNewQuestText(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						<input
+							type="text"
+							placeholder="Clue to help the player"
+							value={newQuestClue}
+							onChange={(e) => setNewQuestClue(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
 						<label>Answers</label>
@@ -898,9 +913,16 @@ function QuestManagement({ db, storage }) {
 						/>
 						<input
 							type="text"
-							placeholder="Text"
+							placeholder="Question or riddle"
 							value={editQuestText}
 							onChange={(e) => setEditQuestText(e.target.value)}
+							className="w-full p-2 border rounded-md mb-4"
+						/>
+						<input
+							type="text"
+							placeholder="Clue to help the player"
+							value={editQuestClue}
+							onChange={(e) => setEditQuestClue(e.target.value)}
 							className="w-full p-2 border rounded-md mb-4"
 						/>
 						<label>Answers</label>
@@ -1120,6 +1142,9 @@ function QuestManagement({ db, storage }) {
 						</p>
 						<p>
 							<strong>Text:</strong> {selectedQuestForView.text}
+						</p>
+						<p>
+							<strong>Clue:</strong> {selectedQuestForView.clue}
 						</p>
 						<p>
 							<strong>Answers:</strong>

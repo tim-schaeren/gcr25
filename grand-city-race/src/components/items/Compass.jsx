@@ -293,8 +293,8 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 
 				{arrivalReached && (
 					<div className="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center p-4">
-						<div className="text-xl font-bold mb-4 text-charcoal">
-							You’ve reached your destination!
+						<div className="text-xl font-bold mb-4 text-center text-charcoal">
+							You’ve reached the quest-area!
 						</div>
 						<button
 							onClick={handleContinue}
