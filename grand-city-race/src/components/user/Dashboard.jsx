@@ -466,18 +466,20 @@ function Dashboard({ user, db }) {
 								{t('solve')}
 							</button>
 
-							{team.progress.cluePurchased.includes(quest.id) ? (
-								<p className="mt-4 text-gray-800 text-lg">
-									{t('clue')}: {quest.clue}
-								</p>
-							) : (
-								<button
-									onClick={handleBuyClue}
-									className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
-								>
-									{t('buyClue')} – {CLUE_PRICE}$
-								</button>
-							)}
+							{/* Clue section */}
+							{quest.clue &&
+								(team.progress.cluePurchased.includes(quest.id) ? (
+									<p className="mt-4 text-gray-800 text-lg">
+										{t('clue')}: {quest.clue}
+									</p>
+								) : (
+									<button
+										onClick={handleBuyClue}
+										className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
+									>
+										{t('buyClue')} – {CLUE_PRICE}$
+									</button>
+								))}
 						</>
 					) : nextHint ? (
 						<div>
