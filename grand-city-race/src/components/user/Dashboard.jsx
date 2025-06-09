@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
+import { useTranslation } from 'react-i18next';
 import {
 	doc,
 	getDoc,
@@ -38,6 +39,7 @@ function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
 }
 
 function Dashboard({ user, db }) {
+	const { t } = useTranslation();
 	const [quest, setQuest] = useState(null);
 	const [currency, setCurrency] = useState(0);
 	const [team, setTeam] = useState(null);
@@ -327,7 +329,7 @@ function Dashboard({ user, db }) {
 	const handleBuyClue = async () => {
 		if (!quest || !team) return;
 		if (currency < CLUE_PRICE) {
-			alert('Not enough currency');
+			alert(t('notEnough'));
 			return;
 		}
 		try {
@@ -361,7 +363,7 @@ function Dashboard({ user, db }) {
 			}));
 		} catch (e) {
 			if (e.message === 'NOT_ENOUGH_CURRENCY') {
-				alert('Not enough currency');
+				alert(t('notEnough'));
 			} else {
 				console.error('Failed to purchase clue:', e);
 			}
@@ -455,45 +457,47 @@ function Dashboard({ user, db }) {
 								onClick={() => navigate('/solver')}
 								className="text-lg font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
 							>
-								Solve
+								{t('solve')}
 							</button>
 
 							{team.progress.cluePurchased.includes(quest.id) ? (
-								<p className="mt-4 text-gray-800 text-lg">Clue: {quest.clue}</p>
+								<p className="mt-4 text-gray-800 text-lg">
+									{t('clue')}: {quest.clue}
+								</p>
 							) : (
 								<button
 									onClick={handleBuyClue}
 									className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
 								>
-									Buy Clue – {CLUE_PRICE}$
+									{t('buyClue')} – {CLUE_PRICE}$
 								</button>
 							)}
 						</>
 					) : nextHint ? (
 						<div>
-							<h3 className="mt-6 text-xl font-bold text-charcoal">Hint:</h3>
+							<h3 className="mt-6 text-xl font-bold text-charcoal">
+								{t('hint')}:
+							</h3>
 							<p className="mt-2 text-charcoal text-xl">{nextHint}</p>
 							<p className="mt-6 mb-6 text-charcoal text-sm">
-								Find the location to activate the quest.
+								{t('findLocation')}
 							</p>
 						</div>
 					) : (
-						<p className="text-gray-400">
-							⚡ Ask your gamemasters to give you a hint on where to go.
-						</p>
+						<p className="text-gray-400">⚡ {t('askGM')}</p>
 					)}
 				</div>
 
 				{/* Team Currency Display */}
 				{team && (
 					<div className="mb-6 text-white text-center text-xl font-bold">
-						Bank: {currency}💰
+						{t('currency')}: {currency}💰
 					</div>
 				)}
 
 				{locationPermission === false && (
 					<p className="mt-4 text-red-400 text-center">
-						⚠️ Location access denied. Please enable location services.
+						⚠️ {t('locationDenied')}
 					</p>
 				)}
 
@@ -502,7 +506,7 @@ function Dashboard({ user, db }) {
 						onClick={() => navigate('/shop')}
 						className="text-xl flex-1 min-w-[120px] px-4 py-2 bg-gold hover:text-parchment font-semibold rounded-md shadow-md hover:bg-yellow-500 transition border border-1 border-white"
 					>
-						Shop
+						{t('items')}
 					</button>
 
 					<a
@@ -517,7 +521,7 @@ function Dashboard({ user, db }) {
 								: 'text-lg bg-parchment text-charcoal border border-charcoal cursor-not-allowed'
 						}`}
 					>
-						Call Hotline
+						📞 {userName === 'Kylie' ? 'Call Boyfriend' : t('callHotline')}
 					</a>
 				</div>
 			</div>

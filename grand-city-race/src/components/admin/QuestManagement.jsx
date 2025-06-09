@@ -570,12 +570,12 @@ function QuestManagement({ db, storage }) {
 		newOrderedQuests.forEach((quest) => {
 			const questRef = doc(db, 'quests', quest.id);
 			batch.update(questRef, {
-				name: quest.name,
+				name: quest.name ?? '',
 				sequence: quest.sequence,
-				hint: quest.hint,
-				text: quest.text,
-				answer: quest.answer,
-				clue: quest.clue,
+				hint: quest.hint ?? '',
+				text: quest.text ?? '',
+				answer: quest.answer ?? [],
+				clue: quest.clue || '',
 				imageUrl: quest.imageUrl || '',
 				imagePath: quest.imagePath || '',
 				videoUrl: quest.videoUrl || '',

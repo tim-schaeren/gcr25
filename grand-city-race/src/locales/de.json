@@ -1,0 +1,13 @@
+{
+  "solve": "Lösen",
+  "buyClue": "Tipp kaufen",
+  "notEnough": "Nicht genug Geld",
+  "currency": "Geld",
+  "hint": "Hinweis",
+  "clue": "Tipp",
+  "items": "items",
+  "callHotline": "Hotline anrufen",
+  "askGM": "Frag deine Gamemaster nach einem Hinweis.",
+  "findLocation": "Finde den richtigen Ort um das Rätsel zu starten.",
+  "locationDenied": "Standortservices funktionieren nicht. Bitte erlaube deinem Browser den Standort zu teilen."
+}

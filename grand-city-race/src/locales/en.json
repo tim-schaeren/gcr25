@@ -1,0 +1,13 @@
+{
+    "solve": "Solve",
+    "buyClue": "Buy Clue",
+    "notEnough": "Not enough currency",
+    "currency": "Currency",
+    "clue": "Clue",
+    "hint": "Hint",
+    "items": "items",
+    "callHotline": "Call Hotline",
+    "askGM": "Ask your gamemasters to give you a hint on where to go.",
+    "findLocation": "Find the location to activate the quest.",
+    "locationDenied": "Location access denied. Please enable location services."
+}

@@ -4,6 +4,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+
 import Dashboard from './components/user/Dashboard';
 import Chat from './components/user/Chat';
 import Shop from './components/user/Shop';
@@ -18,6 +19,7 @@ import EventSignup from './components/user/EventSignup';
 import RegistrationManagement from './components/admin/RegistrationManagement';
 import SettingsPage from './components/admin/SettingsPage';
 import MessagesPage from './components/admin/Messages';
+import Menu from './components/user/Menu';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -96,14 +98,8 @@ function App() {
 
 	return (
 		<div>
-			{user && (
-				<button
-					onClick={handleLogout}
-					style={{ position: 'absolute', top: 10, right: 10 }}
-				>
-					Logout
-				</button>
-			)}
+			{user && <Menu onLogout={handleLogout} />}
+
 			<Routes>
 				{signUpActive !== '' && (
 					<Route
@@ -196,7 +192,6 @@ function App() {
 						)
 					}
 				/>
-
 				<Route
 					path="/admin"
 					element={
