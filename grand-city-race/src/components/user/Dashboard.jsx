@@ -47,10 +47,10 @@ function Dashboard({ user, db }) {
 	const [userName, setUserName] = useState('');
 	const [nextHint, setNextHint] = useState(null);
 	const [locationPermission, setLocationPermission] = useState(null);
-	const [currentLocation, setCurrentLocation] = useState(null);
 	const [fullScreenImageUrl, setFullScreenImageUrl] = useState('');
 	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
 	const [hotlineNumber, setHotlineNumber] = useState('');
+	const [isTextOverlayOpen, setIsTextOverlayOpen] = useState(false);
 
 	const navigate = useNavigate();
 	const lastHistoryLocationRef = useRef(null);
@@ -452,7 +452,13 @@ function Dashboard({ user, db }) {
 									/>
 								</div>
 							)}
-							<p className="mt-2 text-charcoal text-2xl">{quest.text}</p>
+							{/* Scrollable, tappable text box */}
+							<div
+								onClick={() => setIsTextOverlayOpen(true)}
+								className="mt-2 text-charcoal text-lg max-h-48 overflow-y-auto p-2 cursor-pointer text-left"
+							>
+								{quest.text}
+							</div>
 							<button
 								onClick={() => navigate('/solver')}
 								className="text-lg font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
@@ -525,6 +531,29 @@ function Dashboard({ user, db }) {
 					</a>
 				</div>
 			</div>
+
+			{/* Full-Screen Text Overlay */}
+			{isTextOverlayOpen && (
+				<div
+					onClick={() => setIsTextOverlayOpen(false)}
+					className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-6"
+				>
+					<div
+						onClick={(e) => e.stopPropagation()}
+						className="bg-white max-w-3xl w-full max-h-full overflow-y-auto p-6 rounded-lg"
+					>
+						<button
+							onClick={() => setIsTextOverlayOpen(false)}
+							className="mb-4 text-parchment bg-charcoal font-bold absolute top-7 right-7"
+						>
+							X
+						</button>
+						<div className="text-charcoal text-xl whitespace-pre-wrap">
+							{quest.text}
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Full-Screen Image Overlay */}
 			{isFullScreenImageOpen && (
