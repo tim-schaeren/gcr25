@@ -134,12 +134,12 @@ function Solver({ user, db }) {
 
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen text-white p-6">
-			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16  flex items-center px-4 z-10">
+			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
 				<button
 					onClick={() => navigate('/dashboard')}
-					className="mr-4 text-lg text-parchment font-bold bg-charcoal"
+					className="mr-4 text-xl text-parchment font-bold bg-charcoal"
 				>
-					← Back
+					←
 				</button>
 			</div>
 			{gameOver ? (
@@ -162,7 +162,9 @@ function Solver({ user, db }) {
 				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center border border-1 border-parchment">
 					{quest ? (
 						<>
-							<h3 className="text-2xl font-semibold mb-4">{quest.text}</h3>
+							<div className="mt-2 text-parchment text-lg max-h-48 overflow-y-auto p-2 text-left">
+								{quest.text}
+							</div>
 							{errorMessage && (
 								<p className="text-red-500 mb-4">{errorMessage}</p>
 							)}
@@ -171,7 +173,7 @@ function Solver({ user, db }) {
 								value={answer}
 								onChange={(e) => setAnswer(e.target.value)}
 								placeholder="your answer"
-								className="w-full p-2 border border-gray-600 rounded-md mb-4 bg-gray-700 text-white focus:outline-none focus:border-blue-500"
+								className="w-full p-4 border border-gray-600 rounded-md mb-4 mt-8 bg-gray-700 text-white scroll focus:outline-none focus:border-blue-500"
 							/>
 							<button
 								onClick={handleAnswerSubmit}
