@@ -19,6 +19,8 @@ function Solver({ user, db }) {
 	const [nextHint, setNextHint] = useState(null);
 	const [gameOver, setGameOver] = useState(false);
 	const [errorMessage, setErrorMessage] = useState('');
+	const [isTextOverlayOpen, setIsTextOverlayOpen] = useState(false);
+
 	const navigate = useNavigate();
 
 	// Fetch the current quest for the team.
@@ -162,7 +164,10 @@ function Solver({ user, db }) {
 				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center border border-1 border-parchment">
 					{quest ? (
 						<>
-							<div className="mt-2 text-parchment text-lg max-h-48 overflow-y-auto p-2 text-left">
+							<div
+								onClick={() => setIsTextOverlayOpen(true)}
+								className="mt-2 text-parchment text-lg max-h-48 overflow-y-auto p-2 text-left"
+							>
 								{quest.text}
 							</div>
 							{errorMessage && (
@@ -185,6 +190,29 @@ function Solver({ user, db }) {
 					) : (
 						<p className="text-gray-400">Loading quest...</p>
 					)}
+				</div>
+			)}
+
+			{/* Full-Screen Text Overlay */}
+			{isTextOverlayOpen && (
+				<div
+					onClick={() => setIsTextOverlayOpen(false)}
+					className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-6"
+				>
+					<div
+						onClick={(e) => e.stopPropagation()}
+						className="bg-white max-w-3xl w-full max-h-full overflow-y-auto p-6 rounded-lg"
+					>
+						<button
+							onClick={() => setIsTextOverlayOpen(false)}
+							className="mb-4 text-parchment bg-charcoal font-bold absolute top-7 right-7"
+						>
+							X
+						</button>
+						<div className="text-charcoal text-xl whitespace-pre-wrap">
+							{quest.text}
+						</div>
+					</div>
 				</div>
 			)}
 		</div>
