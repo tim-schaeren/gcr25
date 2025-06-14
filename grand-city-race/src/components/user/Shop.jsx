@@ -117,43 +117,39 @@ function Shop({ user, db }) {
 	};
 
 	// Handle Activate click: validate and then write a generic activeItem record.
-	const handleActivateClick = async (item) => {
+	const handleActivateClick = (item) => {
 		if (!team) return;
 
-		// block if there is already any active item
-		if (team.activeItem) {
+		const nowMs = Date.now();
+		const active = team.activeItem;
+		// If there's an activeItem of the same type that is still un-expired, reopen it:
+		if (
+			active &&
+			active.type === item.type &&
+			active.expiresAt?.toMillis() > nowMs
+		) {
+			setSelectedItem(item);
+			setShowItemModal(true);
+			return;
+		}
+
+		// Otherwise if there is any other activeItem, block
+		if (active) {
 			setError('Your team already has an active item at the moment.');
 			setTimeout(() => setError(''), 3000);
 			return;
 		}
 
-		// block if you own none
+		// If no activeItem, verify inventory
 		if (!(team.inventory?.[item.id] > 0)) {
 			setError(`Your team does not have any ${item.name} items right now.`);
 			setTimeout(() => setError(''), 3000);
 			return;
 		}
 
-		// open the modal immediately
+		// finally, open the modal to activate a fresh one
 		setSelectedItem(item);
 		setShowItemModal(true);
-
-		// then write the generic activeItem field
-		const teamRef = doc(db, 'teams', team.id);
-		const nowMs = Date.now();
-		const expiresAt = Timestamp.fromMillis(nowMs + item.duration * 60_000);
-		try {
-			await updateDoc(teamRef, {
-				activeItem: {
-					id: item.id,
-					type: item.type,
-					expiresAt,
-				},
-			});
-		} catch (err) {
-			console.error('Error activating item:', err);
-			// you may want to close modal or inform user here
-		}
 	};
 
 	// Mapping of item types to activation components.
@@ -249,43 +245,50 @@ function Shop({ user, db }) {
 						{items.length === 0 ? (
 							<p className="text-center">No items found.</p>
 						) : (
-							items.map((item) => (
-								<div
-									key={item.id}
-									className="border border-gray-600 p-4 rounded-lg"
-								>
-									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
-									<p className="mb-2">{item.description}</p>
-									<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
-									{item.duration && (
-										<p className="mb-2">Duration: {item.duration} minutes</p>
-									)}
-									<div className="flex space-x-2">
-										<button
-											onClick={() => handlePurchase(item)}
-											className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded transition"
-										>
-											Buy
-										</button>
-										<button
-											onClick={() => handleActivateClick(item)}
-											className={`${
-												team?.inventory?.[item.id] > 0
-													? 'bg-green-600 hover:bg-green-700'
-													: 'bg-gray-600 cursor-not-allowed'
-											} text-white font-semibold py-1 px-3 rounded transition`}
-										>
-											Activate
-										</button>
+							items.map((item) => {
+								const isSameActive =
+									team.activeItem?.type === item.type &&
+									team.activeItem.expiresAt?.toMillis() > Date.now();
+
+								return (
+									<div
+										key={item.id}
+										className="border border-gray-600 p-4 rounded-lg"
+									>
+										<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
+										<p className="mb-2">{item.description}</p>
+										<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
+										{item.duration && (
+											<p className="mb-2">Duration: {item.duration} minutes</p>
+										)}
+										<div className="flex space-x-2">
+											<button
+												onClick={() => handlePurchase(item)}
+												className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded transition"
+											>
+												Buy
+											</button>
+											<button
+												onClick={() => handleActivateClick(item)}
+												className={`${
+													team.inventory?.[item.id] > 0 &&
+													(!team.activeItem || isSameActive)
+														? 'bg-green-600 hover:bg-green-700'
+														: 'bg-gray-600 cursor-not-allowed'
+												} text-white font-semibold py-1 px-3 rounded transition`}
+											>
+												{isSameActive ? 'Open' : 'Activate'}
+											</button>
+										</div>
+										<p className="text-xl mt-2">
+											Owned:{' '}
+											{team?.inventory?.[item.id] !== undefined
+												? team.inventory[item.id]
+												: 0}
+										</p>
 									</div>
-									<p className="text-xl mt-2">
-										Owned:{' '}
-										{team?.inventory?.[item.id] !== undefined
-											? team.inventory[item.id]
-											: 0}
-									</p>
-								</div>
-							))
+								);
+							})
 						)}
 					</div>
 				</div>
