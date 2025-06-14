@@ -38,6 +38,13 @@ function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
 	return d;
 }
 
+// Helper for Time formatting
+function formatMMSS(totalSeconds) {
+	const m = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+	const s = String(totalSeconds % 60).padStart(2, '0');
+	return `${m}:${s}`;
+}
+
 function Dashboard({ user, db }) {
 	const { t } = useTranslation();
 	const [quest, setQuest] = useState(null);
@@ -51,6 +58,8 @@ function Dashboard({ user, db }) {
 	const [isFullScreenImageOpen, setIsFullScreenImageOpen] = useState(false);
 	const [hotlineNumber, setHotlineNumber] = useState('');
 	const [isTextOverlayOpen, setIsTextOverlayOpen] = useState(false);
+	const [cursingTeamName, setCursingTeamName] = useState('');
+	const [remainingSeconds, setRemainingSeconds] = useState(0);
 
 	const navigate = useNavigate();
 	const lastHistoryLocationRef = useRef(null);
@@ -127,6 +136,53 @@ function Dashboard({ user, db }) {
 
 		fetchUserData();
 	}, [user, db]);
+
+	// Listen for cursed updates
+	useEffect(() => {
+		if (!team?.id) return;
+		const teamRef = doc(db, 'teams', team.id);
+		const unsubscribe = onSnapshot(teamRef, (snap) => {
+			if (snap.exists()) {
+				setTeam((prev) => ({ ...prev, ...snap.data() }));
+			}
+		});
+		return unsubscribe;
+	}, [db, team?.id]);
+
+	// fetch cursing team
+	useEffect(() => {
+		if (!team?.cursedBy) {
+			setCursingTeamName('');
+			return;
+		}
+		let cancelled = false;
+		getDoc(doc(db, 'teams', team.cursedBy))
+			.then((snap) => {
+				if (!cancelled && snap.exists()) {
+					setCursingTeamName(snap.data().name || 'Unknown');
+				}
+			})
+			.catch(console.error);
+		return () => {
+			cancelled = true;
+		};
+	}, [db, team?.cursedBy]);
+
+	// find curse-time
+	useEffect(() => {
+		const curseMs = team?.cursedUntil?.toMillis() ?? 0;
+		if (curseMs > Date.now()) {
+			const tick = () => {
+				const secs = Math.max(0, Math.floor((curseMs - Date.now()) / 1000));
+				setRemainingSeconds(secs);
+			};
+			tick();
+			const iv = setInterval(tick, 1000);
+			return () => clearInterval(iv);
+		} else {
+			setRemainingSeconds(0);
+		}
+	}, [team?.cursedUntil]);
 
 	// Fetch hotline number from Firestore settings.
 	useEffect(() => {
@@ -417,84 +473,92 @@ function Dashboard({ user, db }) {
 				)}
 
 				{/* Quest Box */}
-				<div className="mt-5 p-5 mb-10 bg-parchment rounded-xl;border-2 text-center">
-					{quest ? (
-						<>
-							{quest.imageUrl && (
-								<div
-									onClick={() => {
-										setFullScreenImageUrl(quest.imageUrl);
-										setIsFullScreenImageOpen(true);
-									}}
-									className="cursor-pointer mx-auto mb-4 mt-2"
-									style={{ maxWidth: '300px' }}
-								>
-									<img
-										src={quest.imageUrl}
-										alt="Quest"
-										style={{
-											width: '100%',
-											height: '100%',
-											maxHeight: '300px',
-											objectFit: 'contain',
+				{remainingSeconds > 0 ? (
+					<div className="mt-5 p-5 mb-10 bg-red-100 border border-red-400 text-red-700 rounded-xl text-center">
+						<p className="font-semibold text-lg">You have been cursed by</p>
+						<p className="font-semibold text-lg">{cursingTeamName}!</p>
+						<p className="mt-2 text-2xl">{formatMMSS(remainingSeconds)}</p>
+					</div>
+				) : (
+					<div className="mt-5 p-5 mb-10 bg-parchment rounded-xl;border-2 text-center">
+						{quest ? (
+							<>
+								{quest.imageUrl && (
+									<div
+										onClick={() => {
+											setFullScreenImageUrl(quest.imageUrl);
+											setIsFullScreenImageOpen(true);
 										}}
-										className="rounded-md border-2 border-charcoal"
-									/>
-								</div>
-							)}
-							{quest.videoUrl && (
-								<div className="mx-auto mb-4" style={{ maxWidth: '300px' }}>
-									<ReactPlayer
-										url={quest.videoUrl}
-										controls
-										width="100%"
-										height="300px"
-									/>
-								</div>
-							)}
-							{/* Scrollable, tappable text box */}
-							<div
-								onClick={() => setIsTextOverlayOpen(true)}
-								className="mt-2 text-charcoal text-lg max-h-48 overflow-y-auto p-2 cursor-pointer text-left"
-							>
-								{quest.text}
-							</div>
-							<button
-								onClick={() => navigate('/solver')}
-								className="text-lg font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
-							>
-								{t('solve')}
-							</button>
-
-							{/* Clue section */}
-							{quest.clue &&
-								(team.progress.cluePurchased.includes(quest.id) ? (
-									<p className="mt-4 text-gray-800 text-lg">
-										{t('clue')}: {quest.clue}
-									</p>
-								) : (
-									<button
-										onClick={handleBuyClue}
-										className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
+										className="cursor-pointer mx-auto mb-4 mt-2"
+										style={{ maxWidth: '300px' }}
 									>
-										{t('buyClue')} – {CLUE_PRICE}$
-									</button>
-								))}
-						</>
-					) : nextHint ? (
-						<div>
-							<h3 className="mt-6 text-xl font-bold text-charcoal">
-								{t('hint')}:
-							</h3>
-							<p className="mt-2 text-charcoal text-xl">{nextHint}</p>
-							<p className="mt-6 mb-6 text-charcoal text-sm">
-								{t('findLocation')}
-							</p>
-						</div>
-					) : (
-						<p className="text-gray-400">⚡ {t('askGM')}</p>
-					)}
-				</div>
+										<img
+											src={quest.imageUrl}
+											alt="Quest"
+											style={{
+												width: '100%',
+												height: '100%',
+												maxHeight: '300px',
+												objectFit: 'contain',
+											}}
+											className="rounded-md border-2 border-charcoal"
+										/>
+									</div>
+								)}
+								{quest.videoUrl && (
+									<div className="mx-auto mb-4" style={{ maxWidth: '300px' }}>
+										<ReactPlayer
+											url={quest.videoUrl}
+											controls
+											width="100%"
+											height="300px"
+										/>
+									</div>
+								)}
+								{/* Scrollable, tappable text box */}
+								<div
+									onClick={() => setIsTextOverlayOpen(true)}
+									className="mt-2 text-charcoal text-lg max-h-48 overflow-y-auto p-2 cursor-pointer text-left"
+								>
+									{quest.text}
+								</div>
+								<button
+									onClick={() => navigate('/solver')}
+									className="text-lg font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
+								>
+									{t('solve')}
+								</button>
+
+								{/* Clue section */}
+								{quest.clue &&
+									(team.progress.cluePurchased.includes(quest.id) ? (
+										<p className="mt-4 text-gray-800 text-lg">
+											{t('clue')}: {quest.clue}
+										</p>
+									) : (
+										<button
+											onClick={handleBuyClue}
+											className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
+										>
+											{t('buyClue')} – {CLUE_PRICE}$
+										</button>
+									))}
+							</>
+						) : nextHint ? (
+							<div>
+								<h3 className="mt-6 text-xl font-bold text-charcoal">
+									{t('hint')}:
+								</h3>
+								<p className="mt-2 text-charcoal text-xl">{nextHint}</p>
+								<p className="mt-6 mb-6 text-charcoal text-sm">
+									{t('findLocation')}
+								</p>
+							</div>
+						) : (
+							<p className="text-gray-400">⚡ {t('askGM')}</p>
+						)}
+					</div>
+				)}
 
 				{/* Team Currency Display */}
 				{team && (

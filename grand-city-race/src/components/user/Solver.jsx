@@ -10,8 +10,16 @@ import {
 	orderBy,
 	limit,
 	where,
+	onSnapshot,
 } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+
+// Helper for MM:SS formatting
+function formatMMSS(totalSeconds) {
+	const m = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+	const s = String(totalSeconds % 60).padStart(2, '0');
+	return `${m}:${s}`;
+}
 
 function Solver({ user, db }) {
 	const [quest, setQuest] = useState(null);
@@ -20,6 +28,10 @@ function Solver({ user, db }) {
 	const [gameOver, setGameOver] = useState(false);
 	const [errorMessage, setErrorMessage] = useState('');
 	const [isTextOverlayOpen, setIsTextOverlayOpen] = useState(false);
+	const [teamId, setTeamId] = useState(null);
+	const [cursedById, setCursedById] = useState(null);
+	const [cursingTeamName, setCursingTeamName] = useState('');
+	const [remainingSeconds, setRemainingSeconds] = useState(0);
 
 	const navigate = useNavigate();
 
@@ -38,7 +50,10 @@ function Solver({ user, db }) {
 
 				const teamRef = doc(db, 'teams', userData.teamId);
 				const teamSnap = await getDoc(teamRef);
+
 				if (!teamSnap.exists()) return;
+
+				setTeamId(userData.teamId);
 
 				const teamData = teamSnap.data();
 				if (teamData.progress?.currentQuest) {
@@ -58,6 +73,43 @@ function Solver({ user, db }) {
 
 		fetchQuest();
 	}, [user, db]);
+
+	// curse stuff
+	useEffect(() => {
+		if (!teamId) return;
+		const teamRef = doc(db, 'teams', teamId);
+		const unsub = onSnapshot(teamRef, (snap) => {
+			if (!snap.exists()) return;
+			const data = snap.data();
+			// compute remaining seconds
+			const curseTs = data.cursedUntil?.toMillis() ?? 0;
+			const secs =
+				curseTs > Date.now() ? Math.floor((curseTs - Date.now()) / 1000) : 0;
+			setRemainingSeconds(secs);
+			// track who cursed you
+			setCursedById(data.cursedBy || null);
+		});
+		return () => unsub();
+	}, [db, teamId]);
+
+	// find cursing name
+	useEffect(() => {
+		if (!cursedById) {
+			setCursingTeamName('');
+			return;
+		}
+		let cancelled = false;
+		getDoc(doc(db, 'teams', cursedById))
+			.then((snap) => {
+				if (!cancelled && snap.exists()) {
+					setCursingTeamName(snap.data().name || 'Unknown');
+				}
+			})
+			.catch(console.error);
+		return () => {
+			cancelled = true;
+		};
+	}, [db, cursedById]);
 
 	const handleAnswerSubmit = async () => {
 		// Reset any previous error message.
@@ -133,6 +185,20 @@ function Solver({ user, db }) {
 			console.error('Error updating quest progress:', err);
 		}
 	};
+
+	// If we’re still cursed, show the red box and bail out
+	if (remainingSeconds > 0) {
+		return (
+			<div className="flex items-center justify-center min-h-screen bg-charcoal p-6">
+				<div className="p-8 bg-red-100 border border-red-400 text-red-700 rounded-xl text-center">
+					<p className="font-semibold text-lg">
+						You have been cursed by {cursingTeamName}!
+					</p>
+					<p className="mt-2 text-2xl">{formatMMSS(remainingSeconds)}</p>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen text-white p-6">

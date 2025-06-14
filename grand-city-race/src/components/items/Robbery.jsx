@@ -7,7 +7,7 @@ import {
 	updateDoc,
 } from 'firebase/firestore';
 
-const Robbery = ({ team, selectedItem, db, onClose, targetCoords }) => {
+const Robbery = ({ team, selectedItem, db, onClose }) => {
 	const [availableTeams, setAvailableTeams] = useState([]);
 	const [localError, setLocalError] = useState('');
 	const [isProcessing, setIsProcessing] = useState(false);

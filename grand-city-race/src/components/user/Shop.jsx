@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Robbery from '../items/Robbery';
 import Compass from '../items/Compass';
+import Curse from '../items/Curse';
 import DefaultItem from '../items/DefaultItem';
 
 import {
@@ -131,6 +132,7 @@ function Shop({ user, db }) {
 	const activationComponents = {
 		robbery: Robbery,
 		compass: Compass,
+		curse: Curse,
 	};
 
 	// Callback to close the activation modal.
@@ -217,7 +219,7 @@ function Shop({ user, db }) {
 									<p className="mb-2">{item.description}</p>
 									<p className="mb-2">💰 {item.price}</p>
 									{item.duration && (
-										<p className="mb-2">Duration: {item.duration} s</p>
+										<p className="mb-2">Duration: {item.duration} minutes</p>
 									)}
 									{item.stealAmount && (
 										<p className="mb-2">Steal: {item.stealAmount}</p>
