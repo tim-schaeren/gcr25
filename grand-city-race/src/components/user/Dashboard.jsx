@@ -60,6 +60,7 @@ function Dashboard({ user, db }) {
 	const [isTextOverlayOpen, setIsTextOverlayOpen] = useState(false);
 	const [cursingTeamName, setCursingTeamName] = useState('');
 	const [remainingSeconds, setRemainingSeconds] = useState(0);
+	const [currentLocation, setCurrentLocation] = useState(null);
 
 	const navigate = useNavigate();
 	const lastHistoryLocationRef = useRef(null);
