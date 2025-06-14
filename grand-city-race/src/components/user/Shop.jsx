@@ -11,6 +11,7 @@ import {
 	getDoc,
 	updateDoc,
 	onSnapshot,
+	Timestamp,
 } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
@@ -115,20 +116,44 @@ function Shop({ user, db }) {
 		}
 	};
 
-	// Handle Activate click: validate conditions then open modal.
-	const handleActivateClick = (item) => {
-		if (team && team.activeItem) {
+	// Handle Activate click: validate and then write a generic activeItem record.
+	const handleActivateClick = async (item) => {
+		if (!team) return;
+
+		// block if there is already any active item
+		if (team.activeItem) {
 			setError('Your team already has an active item at the moment.');
 			setTimeout(() => setError(''), 3000);
 			return;
 		}
-		if (!(team && team.inventory && team.inventory[item.id] > 0)) {
+
+		// block if you own none
+		if (!(team.inventory?.[item.id] > 0)) {
 			setError(`Your team does not have any ${item.name} items right now.`);
 			setTimeout(() => setError(''), 3000);
 			return;
 		}
+
+		// open the modal immediately
 		setSelectedItem(item);
 		setShowItemModal(true);
+
+		// then write the generic activeItem field
+		const teamRef = doc(db, 'teams', team.id);
+		const nowMs = Date.now();
+		const expiresAt = Timestamp.fromMillis(nowMs + item.duration * 60_000);
+		try {
+			await updateDoc(teamRef, {
+				activeItem: {
+					id: item.id,
+					type: item.type,
+					expiresAt,
+				},
+			});
+		} catch (err) {
+			console.error('Error activating item:', err);
+			// you may want to close modal or inform user here
+		}
 	};
 
 	// Mapping of item types to activation components.
@@ -144,20 +169,23 @@ function Shop({ user, db }) {
 		setSelectedItem(null);
 	};
 
-	// Handler to mark the item as used in the team's inventory.
+	// Handler to mark the item as used in the team's inventory and clear activeItem.
 	const handleItemUsed = async () => {
-		if (!team) return;
+		if (!team || !selectedItem) return;
 		const teamRef = doc(db, 'teams', team.id);
 		const inventory = team.inventory || {};
-		// Ensure the team has at least one item.
+
 		if (inventory[selectedItem.id] > 0) {
 			const updatedInventory = {
 				...inventory,
 				[selectedItem.id]: inventory[selectedItem.id] - 1,
 			};
 			try {
-				await updateDoc(teamRef, { inventory: updatedInventory });
-				setTeam({ ...team, inventory: updatedInventory });
+				await updateDoc(teamRef, {
+					inventory: updatedInventory,
+					activeItem: null, // generic clear
+				});
+				setTeam({ ...team, inventory: updatedInventory, activeItem: null });
 			} catch (err) {
 				console.error('Error updating inventory:', err);
 			}
@@ -172,7 +200,6 @@ function Shop({ user, db }) {
 		return (
 			<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 				<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-					{/* Pass onUsed along with onClose */}
 					<ActivationComponent
 						team={team}
 						selectedItem={selectedItem}
@@ -243,10 +270,7 @@ function Shop({ user, db }) {
 										<button
 											onClick={() => handleActivateClick(item)}
 											className={`${
-												team &&
-												team.inventory &&
-												team.inventory[item.id] > 0 &&
-												!team.activeItem
+												team?.inventory?.[item.id] > 0
 													? 'bg-green-600 hover:bg-green-700'
 													: 'bg-gray-600 cursor-not-allowed'
 											} text-white font-semibold py-1 px-3 rounded transition`}
@@ -256,9 +280,7 @@ function Shop({ user, db }) {
 									</div>
 									<p className="text-xl mt-2">
 										Owned:{' '}
-										{team &&
-										team.inventory &&
-										team.inventory[item.id] !== undefined
+										{team?.inventory?.[item.id] !== undefined
 											? team.inventory[item.id]
 											: 0}
 									</p>

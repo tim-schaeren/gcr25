@@ -9,9 +9,6 @@ import {
 	getDoc,
 	query,
 	where,
-	Timestamp,
-	updateDoc,
-	onSnapshot,
 } from 'firebase/firestore';
 
 // time format utility
@@ -160,8 +157,7 @@ function useNextQuest(db, team) {
 	return [targetQuest, error];
 }
 
-const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
-	const durationMinutes = selectedItem.duration;
+const Compass = ({ team, db, onClose, onUsed }) => {
 	const navigate = useNavigate();
 	const [positionError, setPositionError] = useState(null);
 	const [orientationError, setOrientationError] = useState(null);
@@ -169,66 +165,34 @@ const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
 	const [userLocation, setUserLocation] = useState(null);
 	const [deviceHeading, setDeviceHeading] = useState(null);
 
-	// countdown
-	const [compassActiveUntil, setCompassActiveUntil] = useState(null);
+	// read activeItem.expiresAt
+	const expiresAt =
+		team.activeItem?.type === 'compass' ? team.activeItem.expiresAt : null;
+
 	const [remainingSeconds, setRemainingSeconds] = useState(0);
-	// guard to fire onUsed only once
-	const hasFiredUsed = useRef(false);
+	const firedRef = useRef(false);
 
+	// tick the countdown from expiresAt
 	useEffect(() => {
-		if (!team?.id) return;
-		const teamRef = doc(db, 'teams', team.id);
-
-		const unsub = onSnapshot(teamRef, (snap) => {
-			if (!snap.exists()) return;
-			const data = snap.data();
-
-			// get the server’s value (might be undefined, expired, or still valid)
-			let ts = data.compassActiveUntil;
-			const nowMs = Date.now();
-
-			// if missing or already expired on the server, issue a single write
-			// only “auto-start” if we haven’t already fired onUsed
-			if ((!ts || ts.toMillis() <= nowMs) && !hasFiredUsed.current) {
-				const newTs = Timestamp.fromMillis(nowMs + durationMinutes * 60_000);
-				// fire-and-forget; this will also trigger this same callback again
-				updateDoc(teamRef, { compassActiveUntil: newTs });
-				// reflect the newTs immediately in our local state
-				ts = newTs;
-				hasFiredUsed.current = false;
-			}
-
-			// finally, drive your local countdown
-			setCompassActiveUntil(ts);
-		});
-
-		return unsub;
-	}, [db, team?.id, durationMinutes]);
-
-	// tick the timer
-	useEffect(() => {
-		if (!compassActiveUntil) return;
+		if (!expiresAt) return;
 		const tick = () => {
 			const secs = Math.max(
 				0,
-				Math.floor((compassActiveUntil.toMillis() - Date.now()) / 1000)
+				Math.floor((expiresAt.toMillis() - Date.now()) / 1000)
 			);
 			setRemainingSeconds(secs);
 
-			// once it hits zero, fire onUsed exactly once, then clear the field
-			if (secs === 0 && !hasFiredUsed.current) {
-				hasFiredUsed.current = true;
-				onUsed();
-				updateDoc(doc(db, 'teams', team.id), {
-					compassActiveUntil: null,
-				});
+			if (secs === 0 && !firedRef.current) {
+				firedRef.current = true;
+				onClose();
+				onUsed(); // Shop’s handleItemUsed will clear activeItem
 			}
 		};
 
 		tick();
 		const iv = setInterval(tick, 1000);
 		return () => clearInterval(iv);
-	}, [compassActiveUntil, db, team.id, onUsed]);
+	}, [expiresAt, onClose, onUsed]);
 
 	// Geolocation
 	useEffect(() => {
@@ -345,12 +309,14 @@ const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
 				✕
 			</button>
 
+			{/* Countdown badge */}
 			{remainingSeconds > 0 && (
 				<div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-parchment px-3 py-1 rounded">
 					{formatMMSS(remainingSeconds)}
 				</div>
 			)}
 
+			{/* Compass UI */}
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
 				<img src={compassBase} alt="Compass base" className="w-full h-full" />
 				<img
@@ -375,7 +341,10 @@ const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
 							You’ve reached the quest-area!
 						</div>
 						<button
-							onClick={handleContinue}
+							onClick={() => {
+								onUsed();
+								navigate('/dashboard');
+							}}
 							className="px-4 py-2 bg-blue-600 text-white rounded shadow"
 						>
 							Continue
