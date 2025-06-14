@@ -9,7 +9,17 @@ import {
 	getDoc,
 	query,
 	where,
+	Timestamp,
+	updateDoc,
+	onSnapshot,
 } from 'firebase/firestore';
+
+// time format utility
+function formatMMSS(totalSeconds) {
+	const m = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+	const s = String(totalSeconds % 60).padStart(2, '0');
+	return `${m}:${s}`;
+}
 
 // Throttle utility
 function defaultThrottle(fn, limit) {
@@ -150,13 +160,69 @@ function useNextQuest(db, team) {
 	return [targetQuest, error];
 }
 
-const Compass = ({ team, db, onClose, onUsed }) => {
+const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
+	const durationMinutes = selectedItem.duration;
 	const navigate = useNavigate();
 	const [positionError, setPositionError] = useState(null);
 	const [orientationError, setOrientationError] = useState(null);
 	const [targetQuest, questError] = useNextQuest(db, team);
 	const [userLocation, setUserLocation] = useState(null);
 	const [deviceHeading, setDeviceHeading] = useState(null);
+
+	// countdown
+	const [compassActiveUntil, setCompassActiveUntil] = useState(null);
+	const [remainingSeconds, setRemainingSeconds] = useState(0);
+	// guard to fire onUsed only once
+	const hasFiredUsed = useRef(false);
+
+	// set compassActiveUntil
+	useEffect(() => {
+		if (!team?.id) return;
+		const teamRef = doc(db, 'teams', team.id);
+		const unsub = onSnapshot(teamRef, (snap) => {
+			if (!snap.exists()) return;
+			const ts = snap.data().compassActiveUntil;
+			setCompassActiveUntil(ts ?? null);
+		});
+		return unsub;
+	}, [db, team?.id]);
+
+	useEffect(() => {
+		// if there's no timestamp or it's already expired, write a fresh one
+		if (!compassActiveUntil || compassActiveUntil.toMillis() <= Date.now()) {
+			const now = Date.now();
+			const newTs = Timestamp.fromMillis(now + durationMinutes * 60_000);
+			updateDoc(doc(db, 'teams', team.id), {
+				compassActiveUntil: newTs,
+			});
+			hasFiredUsed.current = false; // reset our guard
+		}
+	}, [compassActiveUntil, db, team.id, durationMinutes]);
+
+	// tick the timer
+	useEffect(() => {
+		if (!compassActiveUntil) return;
+		const tick = () => {
+			const secs = Math.max(
+				0,
+				Math.floor((compassActiveUntil.toMillis() - Date.now()) / 1000)
+			);
+			setRemainingSeconds(secs);
+
+			// once it hits zero, fire onUsed exactly once, then clear the field
+			if (secs === 0 && !hasFiredUsed.current) {
+				hasFiredUsed.current = true;
+				onUsed();
+				updateDoc(doc(db, 'teams', team.id), {
+					compassActiveUntil: null,
+				});
+			}
+		};
+
+		tick();
+		const iv = setInterval(tick, 1000);
+		return () => clearInterval(iv);
+	}, [compassActiveUntil, db, team.id, onUsed]);
 
 	// Geolocation
 	useEffect(() => {
@@ -272,6 +338,12 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 			>
 				✕
 			</button>
+
+			{remainingSeconds > 0 && (
+				<div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-white px-3 py-1 rounded">
+					{formatMMSS(remainingSeconds)}
+				</div>
+			)}
 
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
 				<img src={compassBase} alt="Compass base" className="w-full h-full" />
