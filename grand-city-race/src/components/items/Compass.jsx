@@ -175,29 +175,35 @@ const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
 	// guard to fire onUsed only once
 	const hasFiredUsed = useRef(false);
 
-	// set compassActiveUntil
 	useEffect(() => {
 		if (!team?.id) return;
 		const teamRef = doc(db, 'teams', team.id);
+
 		const unsub = onSnapshot(teamRef, (snap) => {
 			if (!snap.exists()) return;
-			const ts = snap.data().compassActiveUntil;
-			setCompassActiveUntil(ts ?? null);
-		});
-		return unsub;
-	}, [db, team?.id]);
+			const data = snap.data();
 
-	useEffect(() => {
-		// if there's no timestamp or it's already expired, write a fresh one
-		if (!compassActiveUntil || compassActiveUntil.toMillis() <= Date.now()) {
-			const now = Date.now();
-			const newTs = Timestamp.fromMillis(now + durationMinutes * 60_000);
-			updateDoc(doc(db, 'teams', team.id), {
-				compassActiveUntil: newTs,
-			});
-			hasFiredUsed.current = false; // reset our guard
-		}
-	}, [compassActiveUntil, db, team.id, durationMinutes]);
+			// get the server’s value (might be undefined, expired, or still valid)
+			let ts = data.compassActiveUntil;
+			const nowMs = Date.now();
+
+			// if missing or already expired on the server, issue a single write
+			// only “auto-start” if we haven’t already fired onUsed
+			if ((!ts || ts.toMillis() <= nowMs) && !hasFiredUsed.current) {
+				const newTs = Timestamp.fromMillis(nowMs + durationMinutes * 60_000);
+				// fire-and-forget; this will also trigger this same callback again
+				updateDoc(teamRef, { compassActiveUntil: newTs });
+				// reflect the newTs immediately in our local state
+				ts = newTs;
+				hasFiredUsed.current = false;
+			}
+
+			// finally, drive your local countdown
+			setCompassActiveUntil(ts);
+		});
+
+		return unsub;
+	}, [db, team?.id, durationMinutes]);
 
 	// tick the timer
 	useEffect(() => {
@@ -340,7 +346,7 @@ const Compass = ({ team, db, onClose, onUsed, selectedItem }) => {
 			</button>
 
 			{remainingSeconds > 0 && (
-				<div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-white px-3 py-1 rounded">
+				<div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-parchment px-3 py-1 rounded">
 					{formatMMSS(remainingSeconds)}
 				</div>
 			)}
