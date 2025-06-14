@@ -185,9 +185,9 @@ function Chat({ user, db }) {
 			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16 shadow-md flex items-center px-4 z-10">
 				<button
 					onClick={() => navigate('/dashboard')}
-					className="mr-4 text-lg text-parchment font-bold bg-charcoal"
+					className="mr-4 text-3xl text-parchment bg-charcoal"
 				>
-					← Back
+					←
 				</button>
 			</div>
 

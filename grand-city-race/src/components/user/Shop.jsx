@@ -12,6 +12,7 @@ import {
 	updateDoc,
 	onSnapshot,
 } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 
 function Shop({ user, db }) {
 	// Shop state variables
@@ -22,6 +23,8 @@ function Shop({ user, db }) {
 	const [activeMessage, setActiveMessage] = useState('');
 	const [showItemModal, setShowItemModal] = useState(false);
 	const [selectedItem, setSelectedItem] = useState(null);
+
+	const navigate = useNavigate();
 
 	// Real-time listener for team data (inventory, currency, activeItem)
 	useEffect(() => {
@@ -201,11 +204,20 @@ function Shop({ user, db }) {
 				</div>
 			)}
 			<div className="min-h-screen p-6">
+				{/* ── HEADER (fixed to top) ───────────────────────── */}
+				<div className="bg-charcoal fixed top-2 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
+					<button
+						onClick={() => navigate('/dashboard')}
+						className="mr-4 text-3xl text-parchment bg-charcoal"
+					>
+						←
+					</button>
+				</div>
 				<div className="max-w-4xl mx-auto">
-					<h2 className="text-3xl mt-10 font-bold text-center mb-4">
-						🛒 In-Game Shop
-					</h2>
-					<h3 className="text-xl text-center mb-8">In the Bank: {currency}</h3>
+					<h2 className="text-3xl mt-10 font-bold text-center mb-4">🛒 Shop</h2>
+					<h3 className="text-xl text-center font-bold mb-8">
+						In the Bank: {currency}
+					</h3>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{items.length === 0 ? (
 							<p className="text-center">No items found.</p>
@@ -217,12 +229,9 @@ function Shop({ user, db }) {
 								>
 									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
 									<p className="mb-2">{item.description}</p>
-									<p className="mb-2">💰 {item.price}</p>
+									<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
 									{item.duration && (
 										<p className="mb-2">Duration: {item.duration} minutes</p>
-									)}
-									{item.stealAmount && (
-										<p className="mb-2">Steal: {item.stealAmount}</p>
 									)}
 									<div className="flex space-x-2">
 										<button
@@ -245,7 +254,7 @@ function Shop({ user, db }) {
 											Activate
 										</button>
 									</div>
-									<p className="text-sm mt-1">
+									<p className="text-xl mt-2">
 										Owned:{' '}
 										{team &&
 										team.inventory &&

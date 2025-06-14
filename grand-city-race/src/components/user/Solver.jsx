@@ -205,7 +205,7 @@ function Solver({ user, db }) {
 			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
 				<button
 					onClick={() => navigate('/dashboard')}
-					className="mr-4 text-xl text-parchment font-bold bg-charcoal"
+					className="mr-4 text-3xl text-parchment bg-charcoal"
 				>
 					←
 				</button>
