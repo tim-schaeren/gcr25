@@ -531,7 +531,7 @@ function Dashboard({ user, db }) {
 								</button>
 
 								{/* Clue section */}
-								{quest.clue &&
+								{quest.clue?.trim() &&
 								(team.progress?.cluePurchased ?? []).includes(quest.id) ? (
 									<p className="mt-4 text-gray-800 text-lg">
 										{t('clue')}: {quest.clue}
