@@ -463,12 +463,12 @@ function Dashboard({ user, db }) {
 			)}
 
 			{/* Main Card */}
-			<div className="bg-charcoal p-6 rounded-xl shadow-md border-2 shadow-lg">
-				<h2 className="text-2xl font-bold text-center text-parchment">
+			<div className="bg-charcoal p-6 rounded-xl shadow-md shadow-lg">
+				<h2 className="text-3xl font-bold text-center text-parchment">
 					{userName}
 				</h2>
 				{team && (
-					<h3 className="text-lg text-center mt-2 text-white">
+					<h3 className="text-xl text-center mt-2 text-white">
 						<span>{team.name}</span>
 					</h3>
 				)}
@@ -481,7 +481,7 @@ function Dashboard({ user, db }) {
 						<p className="mt-2 text-2xl">{formatMMSS(remainingSeconds)}</p>
 					</div>
 				) : (
-					<div className="mt-5 p-5 mb-10 bg-parchment rounded-xl;border-2 text-center">
+					<div className="mt-5 p-5 mb-6 bg-parchment rounded-xl;border-2 text-center">
 						{quest ? (
 							<>
 								{quest.imageUrl && (
@@ -525,7 +525,7 @@ function Dashboard({ user, db }) {
 								</div>
 								<button
 									onClick={() => navigate('/solver')}
-									className="text-lg font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
+									className="text-xl font-bold mt-10 w-full bg-charcoal hover:bg-green-800 text-parchment py-2 px-4 rounded-md shadow-md transition"
 								>
 									{t('solve')}
 								</button>
@@ -539,7 +539,7 @@ function Dashboard({ user, db }) {
 								) : (
 									<button
 										onClick={handleBuyClue}
-										className="text-lg font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
+										className="text-xl font-bold mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-md transition"
 									>
 										{t('buyClue')} – {CLUE_PRICE}$
 									</button>
@@ -563,7 +563,7 @@ function Dashboard({ user, db }) {
 
 				{/* Team Currency Display */}
 				{team && (
-					<div className="mb-6 text-white text-center text-xl font-bold">
+					<div className="text-white text-center text-2xl font-bold">
 						{t('currency')}: {currency}💰
 					</div>
 				)}
@@ -577,7 +577,7 @@ function Dashboard({ user, db }) {
 				<div className="flex flex-row flex-wrap justify-between gap-4 mt-6">
 					<button
 						onClick={() => navigate('/shop')}
-						className="text-xl flex-1 min-w-[120px] px-4 py-2 bg-gold hover:text-parchment font-semibold rounded-md shadow-md hover:bg-yellow-500 transition border border-1 border-white"
+						className="text-2xl flex-1 min-w-[120px] px-4 py-2 bg-gold hover:text-parchment font-semibold rounded-md shadow-md hover:bg-yellow-500 transition border border-1 border-white"
 					>
 						{t('items')}
 					</button>
@@ -587,14 +587,14 @@ function Dashboard({ user, db }) {
 						onClick={(e) => {
 							if (!hotlineNumber) e.preventDefault();
 						}}
-						className={`flex-1 min-w-[120px] px-4 py-2 rounded-md shadow-md font-semibold text-center transition
+						className={`text-xl flex-1 min-w-[120px] px-4 py-3 rounded-md shadow-md font-bold text-center transition
 						${
 							hotlineNumber
-								? 'text-lg bg-indigo text-parchment border border-1'
-								: 'text-lg bg-parchment text-charcoal border border-charcoal cursor-not-allowed'
+								? 'bg-indigo text-parchment border border-1'
+								: 'bg-parchment text-charcoal border border-charcoal cursor-not-allowed'
 						}`}
 					>
-						📞 {userName === 'Kylie' ? 'Call Boyfriend' : t('callHotline')}
+						{userName === 'Kylie' ? 'Boyfriend' : t('hotline')}
 					</a>
 				</div>
 			</div>

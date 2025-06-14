@@ -6,7 +6,7 @@
   "hint": "Hinweis",
   "clue": "Tipp",
   "items": "items",
-  "callHotline": "Hotline anrufen",
+  "hotline": "Hotline",
   "askGM": "Frag deine Gamemaster nach einem Hinweis.",
   "findLocation": "Finde den richtigen Ort um das Rätsel zu starten.",
   "locationDenied": "Standortservices funktionieren nicht. Bitte erlaube deinem Browser den Standort zu teilen."
