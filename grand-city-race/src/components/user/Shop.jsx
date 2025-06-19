@@ -244,7 +244,7 @@ function Shop({ user, db }) {
 			)}
 
 			<div className="min-h-screen p-6">
-				<div className="bg-charcoal fixed top-2 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
+				<div className="fixed top-2 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
 					<button
 						onClick={() => navigate('/dashboard')}
 						className="mr-4 text-3xl text-parchment bg-charcoal"
