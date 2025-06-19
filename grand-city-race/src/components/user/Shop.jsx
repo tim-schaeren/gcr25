@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Robbery from '../items/Robbery';
 import Compass from '../items/Compass';
 import Curse from '../items/Curse';
+import Immunity from '../items/Immunity';
 import DefaultItem from '../items/DefaultItem';
 
 import {
@@ -160,7 +161,7 @@ function Shop({ user, db }) {
 		}
 		// block if something else active
 		if (userActiveItem) {
-			return setTemporaryError('You already have one active.');
+			return setTemporaryError('You already have an item active. Wait.');
 		}
 		// must own it
 		if (!userOwns[item.id]) {
@@ -198,6 +199,7 @@ function Shop({ user, db }) {
 		robbery: Robbery,
 		compass: Compass,
 		curse: Curse,
+		immunity: Immunity,
 	};
 
 	const onCloseModal = () => {
