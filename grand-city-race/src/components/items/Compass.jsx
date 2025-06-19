@@ -9,6 +9,8 @@ import {
 	getDoc,
 	query,
 	where,
+	onSnapshot, // ← added
+	Timestamp,
 } from 'firebase/firestore';
 
 // time format utility
@@ -33,7 +35,6 @@ function defaultThrottle(fn, limit) {
 // Normalize deviceorientation event into a consistent heading (0–360°)
 function normalizeHeading(event) {
 	let hdg = null;
-	// iOS Safari provides magnetic heading directly
 	if (typeof event.webkitCompassHeading === 'number') {
 		hdg = event.webkitCompassHeading;
 	} else if (event.absolute === true && typeof event.alpha === 'number') {
@@ -41,13 +42,11 @@ function normalizeHeading(event) {
 	} else {
 		return null;
 	}
-	// Compensate for screen orientation
 	const screenAngle =
 		window.screen.orientation?.angle ?? window.orientation ?? 0;
 	return (hdg + screenAngle + 360) % 360;
 }
 
-// Math helpers
 function toRadians(deg) {
 	return (deg * Math.PI) / 180;
 }
@@ -57,7 +56,13 @@ function toDegrees(rad) {
 }
 
 // Hook: bearing, distance, rotation, arrival detection
-function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
+function useCompass(
+	userLocation,
+	targetLocation,
+	deviceHeading,
+	fence = 10,
+	onUsed
+) {
 	const [needleRotation, setNeedleRotation] = useState(0);
 	const [distance, setDistance] = useState(null);
 	const prevRotationRef = useRef(null);
@@ -72,7 +77,6 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		)
 			return;
 
-		// Calculate bearing to target
 		const dLon = toRadians(targetLocation.lng - userLocation.lng);
 		const φ1 = toRadians(userLocation.lat);
 		const φ2 = toRadians(targetLocation.lat);
@@ -82,7 +86,6 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 			Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLon);
 		let brng = (toDegrees(Math.atan2(y, x)) + 360) % 360;
 
-		// Haversine distance
 		const R = 6371000;
 		const dLat = toRadians(targetLocation.lat - userLocation.lat);
 		const dLon2 = toRadians(targetLocation.lng - userLocation.lng);
@@ -94,10 +97,8 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 		const dist = R * c;
 
-		// Needle rotation
 		const rawRotation = brng - deviceHeading;
 		let newRotation = ((rawRotation % 360) + 360) % 360;
-		// Smooth large jumps
 		if (prevRotationRef.current !== null) {
 			let diff = newRotation - prevRotationRef.current;
 			if (diff > 180) newRotation = prevRotationRef.current + (diff - 360);
@@ -109,13 +110,19 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		setNeedleRotation(newRotation);
 		setDistance(dist);
 
-		// Arrival detection
 		const radius = targetLocation.fence ?? fence;
 		if (dist <= radius - 5) {
 			setArrivalReached(true);
 			onUsed();
 		}
-	}, [userLocation, targetLocation, deviceHeading, fence, arrivalReached]);
+	}, [
+		userLocation,
+		targetLocation,
+		deviceHeading,
+		fence,
+		arrivalReached,
+		onUsed,
+	]);
 
 	return { needleRotation, distance, arrivalReached };
 }
@@ -158,7 +165,7 @@ function useNextQuest(db, team) {
 	return [targetQuest, error];
 }
 
-const Compass = ({ team, db, onClose, onUsed }) => {
+const Compass = ({ user, team, db, onClose, onUsed }) => {
 	const navigate = useNavigate();
 	const [positionError, setPositionError] = useState(null);
 	const [orientationError, setOrientationError] = useState(null);
@@ -166,9 +173,20 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 	const [userLocation, setUserLocation] = useState(null);
 	const [deviceHeading, setDeviceHeading] = useState(null);
 
-	// read activeItem.expiresAt
+	// — subscribe to the user's activeItem (from users/{uid})
+	const [userActiveItem, setUserActiveItem] = useState(null);
+	useEffect(() => {
+		if (!user) return;
+		const ref = doc(db, 'users', user.uid);
+		const unsub = onSnapshot(ref, (snap) => {
+			setUserActiveItem(snap.data()?.activeItem || null);
+		});
+		return () => unsub();
+	}, [db, user]);
+
+	// read expiresAt from the user's activeItem
 	const expiresAt =
-		team.activeItem?.type === 'compass' ? team.activeItem.expiresAt : null;
+		userActiveItem?.type === 'compass' ? userActiveItem.expiresAt : null;
 
 	const [remainingSeconds, setRemainingSeconds] = useState(0);
 	const firedRef = useRef(false);
@@ -186,7 +204,7 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 			if (secs === 0 && !firedRef.current) {
 				firedRef.current = true;
 				onClose();
-				onUsed(); // Shop’s handleItemUsed will clear activeItem
+				onUsed(); // clear your user inventory/activeItem
 			}
 		};
 
@@ -244,15 +262,11 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 		userLocation,
 		targetQuest?.location,
 		deviceHeading,
-		10
+		10,
+		onUsed
 	);
 
 	const hasActive = Boolean(team.progress?.currentQuest);
-
-	const handleContinue = () => {
-		onUsed?.();
-		navigate('/dashboard');
-	};
 
 	// Error display
 	if (positionError || orientationError || questError) {

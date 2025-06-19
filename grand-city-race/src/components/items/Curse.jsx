@@ -3,23 +3,27 @@ import {
 	collection,
 	getDocs,
 	doc,
+	getDoc,
 	updateDoc,
 	query,
 	where,
 	Timestamp,
 } from 'firebase/firestore';
 
-const Curse = ({ team, selectedItem, db, onClose }) => {
+const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 	const [availableTeams, setAvailableTeams] = useState([]);
 	const [localError, setLocalError] = useState('');
 	const [isProcessing, setIsProcessing] = useState(false);
 
 	const durationMinutes = selectedItem.duration;
 	const coolDownMinutes = selectedItem.coolDownPeriod;
+	const price = selectedItem.price; // ← grab the item’s cost so we can refund it
 
 	useEffect(() => {
+		console.log('🔥 Curse component received teamId:', teamId);
 		const fetchEligible = async () => {
 			try {
+				// 1) grab *all* teams
 				const teamsSnap = await getDocs(collection(db, 'teams'));
 				const allTeams = teamsSnap.docs.map((d) => ({
 					id: d.id,
@@ -27,21 +31,34 @@ const Curse = ({ team, selectedItem, db, onClose }) => {
 					...d.data(),
 				}));
 
+				// 2) filter out your own + already cursed/immune
 				const now = Timestamp.now();
+
+				allTeams.forEach((t) => {
+					console.log(
+						`-- checking team ${t.id}:`,
+						`equals current?`,
+						t.id === teamId,
+						`cursed?`,
+						t.cursedUntil?.toMillis() > now.toMillis(),
+						`immune?`,
+						t.immuneUntil?.toMillis() > now.toMillis()
+					);
+				});
+
 				const eligible = allTeams.filter((t) => {
-					if (t.id === team.id) return false;
-					if (t.cursedUntil && t.cursedUntil.toMillis() > now.toMillis())
-						return false;
-					if (t.immuneUntil && t.immuneUntil.toMillis() > now.toMillis())
-						return false;
+					if (t.id === teamId) return false;
+					if (t.cursedUntil?.toMillis() > now.toMillis()) return false;
+					if (t.immuneUntil?.toMillis() > now.toMillis()) return false;
 					return true;
 				});
 
-				if (!eligible.length) {
+				if (eligible.length === 0) {
 					setAvailableTeams([]);
 					return;
 				}
 
+				// 3) get member names per team
 				const ids = eligible.map((t) => t.id);
 				const usersQuery = query(
 					collection(db, 'users'),
@@ -50,9 +67,9 @@ const Curse = ({ team, selectedItem, db, onClose }) => {
 				const usersSnap = await getDocs(usersQuery);
 				const membersByTeam = {};
 				usersSnap.docs.forEach((u) => {
-					const { teamId, name } = u.data();
-					if (!membersByTeam[teamId]) membersByTeam[teamId] = [];
-					membersByTeam[teamId].push(name);
+					const { teamId: tid, name } = u.data();
+					membersByTeam[tid] = membersByTeam[tid] || [];
+					membersByTeam[tid].push(name);
 				});
 
 				setAvailableTeams(
@@ -68,48 +85,65 @@ const Curse = ({ team, selectedItem, db, onClose }) => {
 		};
 
 		fetchEligible();
-	}, [db, team]);
+	}, [db, teamId]);
+
+	// Refund handler when no teams are curse-able
+	const handleBonusClaim = async () => {
+		setIsProcessing(true);
+		try {
+			// 1) Top your team’s bank back up by `price`
+			const yourTeamRef = doc(db, 'teams', teamId);
+			const yourSnap = await getDoc(yourTeamRef);
+			const yourData = yourSnap.data() || {};
+			await updateDoc(yourTeamRef, {
+				currency: (yourData.currency || 0) + price,
+			});
+
+			// 2) Clear your activeItem/inventory flag
+			await onUsed();
+
+			// 3) Close the modal
+			onClose();
+		} catch (err) {
+			console.error(err);
+			setLocalError('Failed to claim refund.');
+		} finally {
+			setIsProcessing(false);
+		}
+	};
 
 	const handleTargetSelect = async (targetTeam) => {
 		setIsProcessing(true);
 		try {
 			const now = Timestamp.now();
-			if (
-				targetTeam.cursedUntil &&
-				targetTeam.cursedUntil.toMillis() > now.toMillis()
-			) {
+
+			// sanity checks
+			if (targetTeam.cursedUntil?.toMillis() > now.toMillis()) {
 				setLocalError(`Team ${targetTeam.name} is already cursed.`);
 				return;
 			}
-			if (
-				targetTeam.immuneUntil &&
-				targetTeam.immuneUntil.toMillis() > now.toMillis()
-			) {
-				setLocalError(`Team ${targetTeam.name} is immune at the moment.`);
+			if (targetTeam.immuneUntil?.toMillis() > now.toMillis()) {
+				setLocalError(`Team ${targetTeam.name} is immune right now.`);
 				return;
 			}
 
-			// compute timestamps
+			// compute new timestamps
 			const msCurse = durationMinutes * 60 * 1000;
 			const msImmune = (durationMinutes + coolDownMinutes) * 60 * 1000;
 			const cursedUntil = Timestamp.fromMillis(now.toMillis() + msCurse);
 			const immuneUntil = Timestamp.fromMillis(now.toMillis() + msImmune);
 
+			// 1) apply curse to the *target* team
 			await updateDoc(targetTeam.ref, {
 				cursedUntil,
-				cursedBy: team.id,
+				cursedBy: teamId,
 				immuneUntil,
 			});
 
-			// deduct from inventory
-			const teamRef = doc(db, 'teams', team.id);
-			const newInventory = { ...(team.inventory || {}) };
-			newInventory[selectedItem.id] = (newInventory[selectedItem.id] || 1) - 1;
-			await updateDoc(teamRef, {
-				inventory: newInventory,
-				activeItem: null,
-			});
+			// 2) notify Shop to clear *your* inventory/activeItem
+			await onUsed();
 
+			// 3) close modal
 			onClose();
 		} catch (err) {
 			console.error(err);
@@ -121,7 +155,6 @@ const Curse = ({ team, selectedItem, db, onClose }) => {
 
 	return (
 		<div className="relative bg-charcoal rounded-lg shadow-lg p-6">
-			{/* Close button */}
 			<button
 				onClick={onClose}
 				aria-label="Close"
@@ -135,17 +168,19 @@ const Curse = ({ team, selectedItem, db, onClose }) => {
 
 			{availableTeams.length === 0 ? (
 				<div>
-					<p className="mb-4">No teams are currently able to be cursed.</p>
+					<p className="mb-4">
+						No teams are currently able to be cursed. Here’s your money back.
+					</p>
 					<button
-						onClick={onClose}
+						onClick={handleBonusClaim}
 						disabled={isProcessing}
 						className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded"
 					>
-						{isProcessing ? 'Processing...' : 'Go Back'}
+						{isProcessing ? 'Processing...' : 'Claim Refund'}
 					</button>
 				</div>
 			) : (
-				<div>
+				<div className="space-y-2 max-h-64 overflow-y-auto mb-4">
 					{availableTeams.map((t) => (
 						<button
 							key={t.id}

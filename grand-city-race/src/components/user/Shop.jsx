@@ -16,179 +16,159 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 function Shop({ user, db }) {
-	// Shop state variables
 	const [items, setItems] = useState([]);
 	const [currency, setCurrency] = useState(0);
 	const [team, setTeam] = useState(null);
-	const [error, setError] = useState(null);
+
+	const [userOwns, setUserOwns] = useState({});
+	const [userActiveItem, setUserActiveItem] = useState(null);
+
+	const [error, setError] = useState('');
 	const [activeMessage, setActiveMessage] = useState('');
 	const [showItemModal, setShowItemModal] = useState(false);
 	const [selectedItem, setSelectedItem] = useState(null);
 
 	const navigate = useNavigate();
 
-	// Real-time listener for team data (inventory, currency, activeItem)
+	// — team subscription (for currency)
 	useEffect(() => {
 		if (!user) return;
+		const userRef = doc(db, 'users', user.uid);
 
-		const fetchTeamRealTime = async () => {
-			try {
-				const userRef = doc(db, 'users', user.uid);
-				const userSnap = await getDoc(userRef);
-				if (!userSnap.exists()) return;
-				const userData = userSnap.data();
-				if (!userData.teamId) {
-					console.error('User is not assigned to a team.');
-					return;
-				}
-				const teamRef = doc(db, 'teams', userData.teamId);
-				const unsubscribeTeam = onSnapshot(teamRef, (snapshot) => {
-					const teamData = snapshot.data();
-					setTeam({ id: userData.teamId, ...teamData });
-					setCurrency(teamData.currency || 0);
+		getDoc(userRef)
+			.then((snap) => {
+				const data = snap.data() || {};
+				if (!data.teamId) throw new Error('No team');
+				const teamRef = doc(db, 'teams', data.teamId);
+				return onSnapshot(teamRef, (tsnap) => {
+					const t = tsnap.data();
+					setTeam({ id: data.teamId, ...t });
+					setCurrency(t.currency || 0);
 				});
-				return unsubscribeTeam;
-			} catch (err) {
-				setError('Error fetching user data.');
+			})
+			.catch((err) => {
 				console.error(err);
-			}
-		};
-
-		fetchTeamRealTime();
+				setTemporaryError('Couldn’t load team data.');
+			});
 	}, [user, db]);
 
-	// Fetch shop items (one-time fetch)
+	// — user subscription (for owns + activeItem)
 	useEffect(() => {
-		const fetchItems = async () => {
-			try {
-				const querySnapshot = await getDocs(collection(db, 'items'));
-				const shopItems = querySnapshot.docs.map((doc) => ({
-					id: doc.id,
-					...doc.data(),
-				}));
-				setItems(shopItems);
-			} catch (err) {
-				setError('Error fetching shop items.');
-				console.error('Firestore error:', err);
-			}
-		};
+		if (!user) return;
+		const userRef = doc(db, 'users', user.uid);
+		const unsub = onSnapshot(userRef, (snap) => {
+			const d = snap.data() || {};
+			setUserOwns(d.inventory || {}); // now holds booleans
+			setUserActiveItem(d.activeItem || null);
+		});
+		return () => unsub();
+	}, [user, db]);
 
-		fetchItems();
+	// — shop items once
+	useEffect(() => {
+		getDocs(collection(db, 'items'))
+			.then((qs) => setItems(qs.docs.map((d) => ({ id: d.id, ...d.data() }))))
+			.catch((err) => {
+				console.error(err);
+				setTemporaryError('Error loading items.');
+			});
 	}, [db]);
 
-	// Purchase an item: subtract cost and add one to inventory.
-	const handlePurchase = async (item) => {
-		if (!team) {
-			setError('No team found!');
-			setTimeout(() => setError(''), 3000);
-			return;
-		}
-		if (currency < item.price) {
-			setError('Not enough team currency!');
-			setTimeout(() => setError(''), 3000);
-			return;
-		}
-		try {
-			const teamRef = doc(db, 'teams', team.id);
-			const teamSnap = await getDoc(teamRef);
-			if (!teamSnap.exists()) {
-				setError('Team data not found.');
-				setTimeout(() => setError(''), 3000);
-				return;
-			}
-			const teamData = teamSnap.data();
-			const updatedCurrency = teamData.currency - item.price;
-			const inventory = teamData.inventory || {};
-			inventory[item.id] = (inventory[item.id] || 0) + 1;
+	// transient error helper
+	const setTemporaryError = (msg) => {
+		setError(msg);
+		setTimeout(() => setError(''), 3000);
+	};
 
-			await updateDoc(teamRef, {
-				currency: updatedCurrency,
-				inventory: inventory,
-			});
-			setCurrency(updatedCurrency);
-			setTeam({ ...team, inventory });
-			setActiveMessage(`Your team purchased: ${item.name}`);
+	// — BUY: deduct team funds, set user inventory boolean to true
+	const handlePurchase = async (item) => {
+		if (!team) return setTemporaryError('No team!');
+		if (currency < item.price) return setTemporaryError('Not enough funds!');
+
+		try {
+			// 1) deduct team
+			const teamRef = doc(db, 'teams', team.id);
+			const tSnap = await getDoc(teamRef);
+			const newCur = tSnap.data().currency - item.price;
+			await updateDoc(teamRef, { currency: newCur });
+			setCurrency(newCur);
+			setTeam((t) => ({ ...t, currency: newCur }));
+
+			// 2) mark owned
+			const userRef = doc(db, 'users', user.uid);
+			const newInv = { ...userOwns, [item.id]: true };
+			await updateDoc(userRef, { inventory: newInv });
+			setUserOwns(newInv);
+
+			setActiveMessage(`You bought: ${item.name}`);
 			setTimeout(() => setActiveMessage(''), 3000);
 		} catch (err) {
-			console.error('Error processing purchase:', err);
-			setError('Purchase failed. Try again.');
-			setTimeout(() => setError(''), 3000);
+			console.error(err);
+			setTemporaryError('Purchase failed.');
 		}
 	};
 
-	// Handle Activate click: validate and then write a generic activeItem record.
-	const handleActivateClick = (item) => {
-		if (!team) return;
-
-		const nowMs = Date.now();
-		const active = team.activeItem;
-		// If there's an activeItem of the same type that is still un-expired, reopen it:
+	// — ACTIVATE: now persists expiresAt to users/{uid}.activeItem
+	const handleActivateClick = async (item) => {
+		const now = Date.now();
+		// reopen active session
 		if (
-			active &&
-			active.type === item.type &&
-			active.expiresAt?.toMillis() > nowMs
+			userActiveItem?.type === item.type &&
+			userActiveItem.expiresAt?.toMillis() > now
 		) {
 			setSelectedItem(item);
 			setShowItemModal(true);
 			return;
 		}
-
-		// Otherwise if there is any other activeItem, block
-		if (active) {
-			setError('Your team already has an active item at the moment.');
-			setTimeout(() => setError(''), 3000);
-			return;
+		// block if something else active
+		if (userActiveItem) {
+			return setTemporaryError('You already have one active.');
+		}
+		// must own it
+		if (!userOwns[item.id]) {
+			return setTemporaryError(`You don’t own a ${item.name}.`);
 		}
 
-		// If no activeItem, verify inventory
-		if (!(team.inventory?.[item.id] > 0)) {
-			setError(`Your team does not have any ${item.name} items right now.`);
-			setTimeout(() => setError(''), 3000);
-			return;
-		}
+		// **persist the new expiresAt**
+		const expiresAt = Timestamp.fromMillis(now + item.duration * 60 * 1000);
+		const userRef = doc(db, 'users', user.uid);
+		await updateDoc(userRef, {
+			activeItem: { type: item.type, expiresAt },
+		});
 
-		// finally, open the modal to activate a fresh one
+		// then open the modal
 		setSelectedItem(item);
 		setShowItemModal(true);
 	};
 
-	// Mapping of item types to activation components.
+	// — onUsed: clear ownership & activeItem
+	const handleItemUsed = async () => {
+		if (!selectedItem) return;
+		const userRef = doc(db, 'users', user.uid);
+		const updInv = { ...userOwns, [selectedItem.id]: false };
+		try {
+			await updateDoc(userRef, {
+				inventory: updInv,
+				activeItem: null,
+			});
+			setUserOwns(updInv);
+			setUserActiveItem(null);
+		} catch (err) {
+			console.error('Usage error:', err);
+		}
+	};
+
 	const activationComponents = {
 		robbery: Robbery,
 		compass: Compass,
 		curse: Curse,
 	};
 
-	// Callback to close the activation modal.
 	const onCloseModal = () => {
 		setShowItemModal(false);
 		setSelectedItem(null);
 	};
 
-	// Handler to mark the item as used in the team's inventory and clear activeItem.
-	const handleItemUsed = async () => {
-		if (!team || !selectedItem) return;
-		const teamRef = doc(db, 'teams', team.id);
-		const inventory = team.inventory || {};
-
-		if (inventory[selectedItem.id] > 0) {
-			const updatedInventory = {
-				...inventory,
-				[selectedItem.id]: inventory[selectedItem.id] - 1,
-			};
-			try {
-				await updateDoc(teamRef, {
-					inventory: updatedInventory,
-					activeItem: null, // generic clear
-				});
-				setTeam({ ...team, inventory: updatedInventory, activeItem: null });
-			} catch (err) {
-				console.error('Error updating inventory:', err);
-			}
-		}
-	};
-
-	// Render the modal content with both onClose and onUsed
 	const renderModalContent = () => {
 		if (!selectedItem) return null;
 		const ActivationComponent =
@@ -197,6 +177,8 @@ function Shop({ user, db }) {
 			<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 				<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
 					<ActivationComponent
+						user={user}
+						teamId={team.id}
 						team={team}
 						selectedItem={selectedItem}
 						db={db}
@@ -210,7 +192,6 @@ function Shop({ user, db }) {
 
 	return (
 		<>
-			{/* Error message overlay */}
 			{error && (
 				<div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
 					<div className="bg-red-600 p-4 rounded-lg text-white shadow-lg">
@@ -218,7 +199,6 @@ function Shop({ user, db }) {
 					</div>
 				</div>
 			)}
-			{/* Success message overlay */}
 			{activeMessage && (
 				<div className="fixed top-16 left-1/2 transform -translate-x-1/2 z-50">
 					<div className="bg-green-600 p-4 rounded-lg text-white shadow-lg">
@@ -226,8 +206,8 @@ function Shop({ user, db }) {
 					</div>
 				</div>
 			)}
+
 			<div className="min-h-screen p-6">
-				{/* ── HEADER (fixed to top) ───────────────────────── */}
 				<div className="bg-charcoal fixed top-2 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
 					<button
 						onClick={() => navigate('/dashboard')}
@@ -242,54 +222,44 @@ function Shop({ user, db }) {
 						In the Bank: {currency}
 					</h3>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						{items.length === 0 ? (
-							<p className="text-center">No items found.</p>
-						) : (
-							items.map((item) => {
-								const isSameActive =
-									team.activeItem?.type === item.type &&
-									team.activeItem.expiresAt?.toMillis() > Date.now();
+						{items.map((item) => {
+							const isSameActive =
+								userActiveItem?.type === item.type &&
+								userActiveItem.expiresAt?.toMillis() > Date.now();
+							const owns = !!userOwns[item.id];
 
-								return (
-									<div
-										key={item.id}
-										className="border border-gray-600 p-4 rounded-lg"
-									>
-										<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
-										<p className="mb-2">{item.description}</p>
-										<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
-										{item.duration && (
-											<p className="mb-2">Duration: {item.duration} minutes</p>
-										)}
-										<div className="flex space-x-2">
+							return (
+								<div key={item.id} className="border p-4 rounded-lg">
+									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
+									<p className="mb-2">{item.description}</p>
+									<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
+									{item.duration && (
+										<p className="mb-2">Duration: {item.duration} minutes</p>
+									)}
+									<div className="flex space-x-2">
+										{!owns ? (
 											<button
 												onClick={() => handlePurchase(item)}
 												className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded transition"
 											>
 												Buy
 											</button>
+										) : (
 											<button
 												onClick={() => handleActivateClick(item)}
 												className={`${
-													team.inventory?.[item.id] > 0 &&
-													(!team.activeItem || isSameActive)
+													!userActiveItem || isSameActive
 														? 'bg-green-600 hover:bg-green-700'
 														: 'bg-gray-600 cursor-not-allowed'
 												} text-white font-semibold py-1 px-3 rounded transition`}
 											>
 												{isSameActive ? 'Open' : 'Activate'}
 											</button>
-										</div>
-										<p className="text-xl mt-2">
-											Owned:{' '}
-											{team?.inventory?.[item.id] !== undefined
-												? team.inventory[item.id]
-												: 0}
-										</p>
+										)}
 									</div>
-								);
-							})
-						)}
+								</div>
+							);
+						})}
 					</div>
 				</div>
 				{showItemModal && renderModalContent()}
