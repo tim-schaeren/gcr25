@@ -212,11 +212,11 @@ function Solver({ user, db }) {
 			</div>
 			{gameOver ? (
 				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center">
-					<h2 className="text-3xl font-bold mb-4">🎉 Congratulations! 🎉</h2>
+					<h2 className="text-2xl font-bold mb-4">🎉 Congratulations! 🎉</h2>
 					<p className="mb-6">Your team has completed the race!</p>
 					<button
 						onClick={() => navigate('/dashboard')}
-						className="w-full hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition"
+						className="w-full hover:bg-blue-600 text-charcoal font-semibold py-2 px-4 rounded-lg transition"
 					>
 						Return to Dashboard
 					</button>
