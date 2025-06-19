@@ -9,7 +9,7 @@ import {
 	getDoc,
 	query,
 	where,
-	onSnapshot, // ← added
+	onSnapshot,
 	Timestamp,
 } from 'firebase/firestore';
 

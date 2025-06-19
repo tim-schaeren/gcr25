@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Robbery from '../items/Robbery';
 import Compass from '../items/Compass';
 import Curse from '../items/Curse';
@@ -29,6 +29,7 @@ function Shop({ user, db }) {
 	const [selectedItem, setSelectedItem] = useState(null);
 
 	const navigate = useNavigate();
+	const cleanupTimerRef = useRef(null);
 
 	// — team subscription (for currency)
 	useEffect(() => {
@@ -58,11 +59,50 @@ function Shop({ user, db }) {
 		const userRef = doc(db, 'users', user.uid);
 		const unsub = onSnapshot(userRef, (snap) => {
 			const d = snap.data() || {};
-			setUserOwns(d.inventory || {}); // now holds booleans
+			setUserOwns(d.inventory || {});
 			setUserActiveItem(d.activeItem || null);
 		});
 		return () => unsub();
 	}, [user, db]);
+
+	// — auto-cleanup expired activeItem via timeout
+	useEffect(() => {
+		// clear any existing timer
+		if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
+
+		if (!user || !userActiveItem) return;
+		const expiresAtMs = userActiveItem.expiresAt?.toMillis?.();
+		if (!expiresAtMs) return;
+
+		const now = Date.now();
+		const delta = expiresAtMs - now;
+		const userRef = doc(db, 'users', user.uid);
+		const expiredId = userActiveItem.id;
+		const newInv = { ...userOwns, [expiredId]: false };
+
+		const runCleanup = async () => {
+			try {
+				await updateDoc(userRef, {
+					inventory: newInv,
+					activeItem: null,
+				});
+				setUserOwns(newInv);
+				setUserActiveItem(null);
+			} catch (err) {
+				console.error('Cleanup error:', err);
+			}
+		};
+
+		if (delta <= 0) {
+			runCleanup();
+		} else {
+			cleanupTimerRef.current = setTimeout(runCleanup, delta);
+		}
+
+		return () => {
+			if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
+		};
+	}, [userActiveItem, userOwns, user, db]);
 
 	// — shop items once
 	useEffect(() => {
@@ -86,7 +126,6 @@ function Shop({ user, db }) {
 		if (currency < item.price) return setTemporaryError('Not enough funds!');
 
 		try {
-			// 1) deduct team
 			const teamRef = doc(db, 'teams', team.id);
 			const tSnap = await getDoc(teamRef);
 			const newCur = tSnap.data().currency - item.price;
@@ -94,7 +133,6 @@ function Shop({ user, db }) {
 			setCurrency(newCur);
 			setTeam((t) => ({ ...t, currency: newCur }));
 
-			// 2) mark owned
 			const userRef = doc(db, 'users', user.uid);
 			const newInv = { ...userOwns, [item.id]: true };
 			await updateDoc(userRef, { inventory: newInv });
@@ -108,7 +146,7 @@ function Shop({ user, db }) {
 		}
 	};
 
-	// — ACTIVATE: now persists expiresAt to users/{uid}.activeItem
+	// — ACTIVATE: now persists id + expiresAt to users/{uid}.activeItem
 	const handleActivateClick = async (item) => {
 		const now = Date.now();
 		// reopen active session
@@ -129,14 +167,12 @@ function Shop({ user, db }) {
 			return setTemporaryError(`You don’t own a ${item.name}.`);
 		}
 
-		// **persist the new expiresAt**
 		const expiresAt = Timestamp.fromMillis(now + item.duration * 60 * 1000);
 		const userRef = doc(db, 'users', user.uid);
 		await updateDoc(userRef, {
-			activeItem: { type: item.type, expiresAt },
+			activeItem: { id: item.id, type: item.type, expiresAt },
 		});
 
-		// then open the modal
 		setSelectedItem(item);
 		setShowItemModal(true);
 	};
@@ -233,7 +269,7 @@ function Shop({ user, db }) {
 									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
 									<p className="mb-2">{item.description}</p>
 									<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
-									{item.duration && (
+									{typeof item.duration === 'number' && item.duration >= 1 && (
 										<p className="mb-2">Duration: {item.duration} minutes</p>
 									)}
 									<div className="flex space-x-2">
@@ -253,7 +289,7 @@ function Shop({ user, db }) {
 														: 'bg-gray-600 cursor-not-allowed'
 												} text-white font-semibold py-1 px-3 rounded transition`}
 											>
-												{isSameActive ? 'Open' : 'Activate'}
+												{isSameActive ? 'Open' : 'Use'}
 											</button>
 										)}
 									</div>
