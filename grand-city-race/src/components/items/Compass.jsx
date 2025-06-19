@@ -113,6 +113,7 @@ function useCompass(userLocation, targetLocation, deviceHeading, fence = 10) {
 		const radius = targetLocation.fence ?? fence;
 		if (dist <= radius - 5) {
 			setArrivalReached(true);
+			onUsed();
 		}
 	}, [userLocation, targetLocation, deviceHeading, fence, arrivalReached]);
 
@@ -342,7 +343,6 @@ const Compass = ({ team, db, onClose, onUsed }) => {
 						</div>
 						<button
 							onClick={() => {
-								onUsed();
 								navigate('/dashboard');
 							}}
 							className="px-4 py-2 bg-blue-600 text-white rounded shadow"
