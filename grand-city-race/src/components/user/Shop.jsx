@@ -269,7 +269,17 @@ function Shop({ user, db }) {
 							const owns = !!userOwns[item.id];
 
 							return (
-								<div key={item.id} className="border p-4 rounded-lg">
+								<div
+									key={item.id}
+									className="border p-4 rounded-lg"
+									style={
+										team
+											? {
+													background: `radial-gradient(circle at bottom right, ${team.color.hex}, transparent 70%)`,
+											  }
+											: {}
+									}
+								>
 									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
 									<p className="mb-2">{item.description}</p>
 									<p className="mb-2 text-xl font-bold">
