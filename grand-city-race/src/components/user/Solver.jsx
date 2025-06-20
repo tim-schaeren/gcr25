@@ -222,8 +222,8 @@ function Solver({ user, db }) {
 					</button>
 				</div>
 			) : nextHint ? (
-				<div className="p-8 rounded-lg shadow-lg w-full max-w-md text-center border border-parchment">
-					<h3 className="text-2xl font-semibold mb-4">Correct!</h3>
+				<div className="bg-olive p-8 rounded-lg shadow-lg w-full max-w-md text-center border border-parchment">
+					<h3 className="text-2xl font-semibold mb-4">Correct!🎉</h3>
 					<p className="mb-4">Loading your next hint!</p>
 				</div>
 			) : (
