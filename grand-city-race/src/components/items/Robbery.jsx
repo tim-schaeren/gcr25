@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
 	collection,
 	getDocs,
@@ -9,13 +10,14 @@ import {
 } from 'firebase/firestore';
 
 const Robbery = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
+	const { t } = useTranslation();
 	const [availableTeams, setAvailableTeams] = useState([]);
 	const [localError, setLocalError] = useState('');
 	const [isProcessing, setIsProcessing] = useState(false);
 	const stealAmount = selectedItem.stealAmount;
 	const price = selectedItem.price;
 
-	// Fetch eligible teams (all except yours, with enough currency, not immune)
+	// Fetch eligible teams
 	useEffect(() => {
 		const fetchEligibleTeams = async () => {
 			try {
@@ -37,18 +39,17 @@ const Robbery = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				setAvailableTeams(eligible);
 			} catch (err) {
 				console.error(err);
-				setLocalError('Failed to fetch teams.');
+				setLocalError(t('robbery.errors.fetchTeams'));
 			}
 		};
 
 		fetchEligibleTeams();
-	}, [db, teamId, stealAmount]);
+	}, [db, teamId, stealAmount, t]);
 
-	// Claim bonus if nobody to rob
+	// Claim refund if nobody to rob
 	const handleBonusClaim = async () => {
 		setIsProcessing(true);
 		try {
-			// add to your team
 			const yourTeamRef = doc(db, 'teams', teamId);
 			const yourSnap = await getDoc(yourTeamRef);
 			const yourData = yourSnap.data() || {};
@@ -56,12 +57,11 @@ const Robbery = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				currency: (yourData.currency || 0) + price,
 			});
 
-			// clear your item/inventory
 			await onUsed();
 			onClose();
 		} catch (err) {
 			console.error(err);
-			setLocalError('Failed to claim bonus.');
+			setLocalError(t('robbery.errors.claimBonus'));
 		}
 		setIsProcessing(false);
 	};
@@ -72,12 +72,14 @@ const Robbery = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 		try {
 			const now = Timestamp.now();
 			if (targetTeam.immuneUntil?.toMillis() > now.toMillis()) {
-				setLocalError(`Team ${targetTeam.name} is currently immune.`);
+				setLocalError(t('robbery.errors.immune', { name: targetTeam.name }));
 				setIsProcessing(false);
 				return;
 			}
 			if ((targetTeam.currency || 0) < stealAmount) {
-				setLocalError(`Team ${targetTeam.name} doesn’t have enough funds.`);
+				setLocalError(
+					t('robbery.errors.insufficientFunds', { name: targetTeam.name })
+				);
 				setIsProcessing(false);
 				return;
 			}
@@ -95,46 +97,44 @@ const Robbery = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				currency: (yourData.currency || 0) + stealAmount,
 			});
 
-			// clear your item/inventory
 			await onUsed();
 			onClose();
 		} catch (err) {
 			console.error(err);
-			setLocalError('Failed to process robbery.');
+			setLocalError(t('robbery.errors.process'));
 		}
 		setIsProcessing(false);
 	};
 
 	return (
 		<div className="relative bg-charcoal rounded-lg shadow-lg p-6">
-			<h3 className="text-xl font-semibold mb-4">
-				Select a team to steal from:
-			</h3>
+			<h3 className="text-xl font-semibold mb-4">{t('robbery.selectTeam')}</h3>
 			{localError && <p className="text-red-500 mb-2">{localError}</p>}
 
 			{availableTeams.length === 0 ? (
 				<div>
-					<p className="mb-4">
-						No teams can be stolen from at the moment. Here's your money back.
-					</p>
+					<p className="mb-4">{t('robbery.noTeams')}</p>
 					<button
 						onClick={handleBonusClaim}
 						disabled={isProcessing}
 						className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded"
 					>
-						{isProcessing ? 'Processing...' : 'Refund'}
+						{isProcessing ? t('robbery.processing') : t('robbery.refund')}
 					</button>
 				</div>
 			) : (
 				<div className="space-y-2 max-h-64 overflow-y-auto">
-					{availableTeams.map((t) => (
+					{availableTeams.map((tgt) => (
 						<button
-							key={t.id}
-							onClick={() => handleTargetSelect(t)}
+							key={tgt.id}
+							onClick={() => handleTargetSelect(tgt)}
 							disabled={isProcessing}
 							className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded block w-full text-left"
 						>
-							{t.name} (💰 {t.currency})
+							{t('robbery.teamBalance', {
+								name: tgt.name,
+								currency: tgt.currency,
+							})}
 						</button>
 					))}
 				</div>

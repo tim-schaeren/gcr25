@@ -79,5 +79,19 @@
       "title": "Dein Team ist immun"
     },
     "applying": "Immunität wird angewendet…"
+  },
+  "robbery": {
+    "selectTeam": "Wähle ein Team zum Berauben:",
+    "noTeams": "Derzeit kann kein Team beraubt werden. Hier ist dein Geld zurück.",
+    "processing": "Verarbeite…",
+    "refund": "Rückerstattung",
+    "teamBalance": "{{name}} (💰 {{currency}})",
+    "errors": {
+      "fetchTeams": "Teams konnten nicht geladen werden.",
+      "claimBonus": "Rückerstattung konnte nicht beansprucht werden.",
+      "immune": "Team {{name}} ist gerade immun.",
+      "insufficientFunds": "Team {{name}} hat nicht genug Guthaben.",
+      "process": "Ausraub-Vorgang fehlgeschlagen."
+    }
   }
 }

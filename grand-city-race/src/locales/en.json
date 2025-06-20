@@ -79,5 +79,19 @@
             "title": "Your team is immune"
         },
         "applying": "Applying immunity…"
+    },
+    "robbery": {
+        "selectTeam": "Select a team to steal from:",
+        "noTeams": "No teams can be stolen from at the moment. Here's your money back.",
+        "processing": "Processing...",
+        "refund": "Refund",
+        "teamBalance": "{{name}} (💰 {{currency}})",
+        "errors": {
+            "fetchTeams": "Failed to fetch teams.",
+            "claimBonus": "Failed to claim bonus.",
+            "immune": "Team {{name}} is currently immune.",
+            "insufficientFunds": "Team {{name}} doesn’t have enough funds.",
+            "process": "Failed to process robbery."
+        }
     }
 }
