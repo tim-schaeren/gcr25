@@ -52,7 +52,19 @@
     "arrival": {
       "message": "Du hast das Quest-Gebiet erreicht!",
       "continue": "Weiter"
-    },
-    "distanceFallback": "-- m"
+    }
+  },
+  "curse": {
+    "selectTeam": "Wähle ein Team zum Verfluchen:",
+    "noTeams": "Derzeit können keine Teams verflucht werden. Hier ist dein Geld zurück.",
+    "processing": "Verarbeiten…",
+    "claimRefund": "Rückerstattung abholen",
+    "errors": {
+      "fetchTeams": "Teams konnten nicht geladen werden.",
+      "claimRefund": "Rückerstattung fehlgeschlagen.",
+      "alreadyCursed": "Team {{name}} ist bereits verflucht.",
+      "immune": "Team {{name}} ist gerade immun.",
+      "processCurse": "Verfluchung fehlgeschlagen."
+    }
   }
 }

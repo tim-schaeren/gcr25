@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
 	collection,
 	getDocs,
@@ -11,19 +12,18 @@ import {
 } from 'firebase/firestore';
 
 const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
+	const { t } = useTranslation();
 	const [availableTeams, setAvailableTeams] = useState([]);
 	const [localError, setLocalError] = useState('');
 	const [isProcessing, setIsProcessing] = useState(false);
 
 	const durationMinutes = selectedItem.duration;
 	const coolDownMinutes = selectedItem.coolDownPeriod;
-	const price = selectedItem.price; // ← grab the item’s cost so we can refund it
+	const price = selectedItem.price;
 
 	useEffect(() => {
-		console.log('🔥 Curse component received teamId:', teamId);
 		const fetchEligible = async () => {
 			try {
-				// 1) grab *all* teams
 				const teamsSnap = await getDocs(collection(db, 'teams'));
 				const allTeams = teamsSnap.docs.map((d) => ({
 					id: d.id,
@@ -31,21 +31,7 @@ const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 					...d.data(),
 				}));
 
-				// 2) filter out your own + already cursed/immune
 				const now = Timestamp.now();
-
-				allTeams.forEach((t) => {
-					console.log(
-						`-- checking team ${t.id}:`,
-						`equals current?`,
-						t.id === teamId,
-						`cursed?`,
-						t.cursedUntil?.toMillis() > now.toMillis(),
-						`immune?`,
-						t.immuneUntil?.toMillis() > now.toMillis()
-					);
-				});
-
 				const eligible = allTeams.filter((t) => {
 					if (t.id === teamId) return false;
 					if (t.cursedUntil?.toMillis() > now.toMillis()) return false;
@@ -58,13 +44,10 @@ const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 					return;
 				}
 
-				// 3) get member names per team
 				const ids = eligible.map((t) => t.id);
-				const usersQuery = query(
-					collection(db, 'users'),
-					where('teamId', 'in', ids)
+				const usersSnap = await getDocs(
+					query(collection(db, 'users'), where('teamId', 'in', ids))
 				);
-				const usersSnap = await getDocs(usersQuery);
 				const membersByTeam = {};
 				usersSnap.docs.forEach((u) => {
 					const { teamId: tid, name } = u.data();
@@ -80,33 +63,26 @@ const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				);
 			} catch (err) {
 				console.error(err);
-				setLocalError('Failed to fetch teams.');
+				setLocalError(t('curse.errors.fetchTeams'));
 			}
 		};
-
 		fetchEligible();
-	}, [db, teamId]);
+	}, [db, teamId, t]);
 
-	// Refund handler when no teams are curse-able
 	const handleBonusClaim = async () => {
 		setIsProcessing(true);
 		try {
-			// 1) Top your team’s bank back up by `price`
 			const yourTeamRef = doc(db, 'teams', teamId);
 			const yourSnap = await getDoc(yourTeamRef);
 			const yourData = yourSnap.data() || {};
 			await updateDoc(yourTeamRef, {
 				currency: (yourData.currency || 0) + price,
 			});
-
-			// 2) Clear your activeItem/inventory flag
 			await onUsed();
-
-			// 3) Close the modal
 			onClose();
 		} catch (err) {
 			console.error(err);
-			setLocalError('Failed to claim refund.');
+			setLocalError(t('curse.errors.claimRefund'));
 		} finally {
 			setIsProcessing(false);
 		}
@@ -116,38 +92,33 @@ const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 		setIsProcessing(true);
 		try {
 			const now = Timestamp.now();
-
-			// sanity checks
 			if (targetTeam.cursedUntil?.toMillis() > now.toMillis()) {
-				setLocalError(`Team ${targetTeam.name} is already cursed.`);
+				setLocalError(
+					t('curse.errors.alreadyCursed', { name: targetTeam.name })
+				);
 				return;
 			}
 			if (targetTeam.immuneUntil?.toMillis() > now.toMillis()) {
-				setLocalError(`Team ${targetTeam.name} is immune right now.`);
+				setLocalError(t('curse.errors.immune', { name: targetTeam.name }));
 				return;
 			}
 
-			// compute new timestamps
 			const msCurse = durationMinutes * 60 * 1000;
 			const msImmune = (durationMinutes + coolDownMinutes) * 60 * 1000;
 			const cursedUntil = Timestamp.fromMillis(now.toMillis() + msCurse);
 			const immuneUntil = Timestamp.fromMillis(now.toMillis() + msImmune);
 
-			// 1) apply curse to the *target* team
 			await updateDoc(targetTeam.ref, {
 				cursedUntil,
 				cursedBy: teamId,
 				immuneUntil,
 			});
 
-			// 2) notify Shop to clear *your* inventory/activeItem
 			await onUsed();
-
-			// 3) close modal
 			onClose();
 		} catch (err) {
 			console.error(err);
-			setLocalError('Failed to process curse.');
+			setLocalError(t('curse.errors.processCurse'));
 		} finally {
 			setIsProcessing(false);
 		}
@@ -163,20 +134,18 @@ const Curse = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				×
 			</button>
 
-			<h3 className="text-xl font-semibold mb-4">Select a team to curse:</h3>
+			<h3 className="text-xl font-semibold mb-4">{t('curse.selectTeam')}</h3>
 			{localError && <p className="text-red-500 mb-2">{localError}</p>}
 
 			{availableTeams.length === 0 ? (
 				<div>
-					<p className="mb-4">
-						No teams are currently able to be cursed. Here’s your money back.
-					</p>
+					<p className="mb-4">{t('curse.noTeams')}</p>
 					<button
 						onClick={handleBonusClaim}
 						disabled={isProcessing}
 						className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded"
 					>
-						{isProcessing ? 'Processing...' : 'Claim Refund'}
+						{isProcessing ? t('curse.processing') : t('curse.claimRefund')}
 					</button>
 				</div>
 			) : (

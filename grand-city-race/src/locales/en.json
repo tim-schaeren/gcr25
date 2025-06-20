@@ -53,5 +53,18 @@
             "message": "You’ve reached the quest-area!",
             "continue": "Continue"
         }
+    },
+    "curse": {
+        "selectTeam": "Select a team to curse:",
+        "noTeams": "No teams are currently able to be cursed. Here’s your money back.",
+        "processing": "Processing...",
+        "claimRefund": "Claim Refund",
+        "errors": {
+            "fetchTeams": "Failed to fetch teams.",
+            "claimRefund": "Failed to claim refund.",
+            "alreadyCursed": "Team {{name}} is already cursed.",
+            "immune": "Team {{name}} is immune right now.",
+            "processCurse": "Failed to process curse."
+        }
     }
 }
