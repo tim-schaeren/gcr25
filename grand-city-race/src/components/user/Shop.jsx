@@ -29,6 +29,10 @@ function Shop({ user, db }) {
 	const [showItemModal, setShowItemModal] = useState(false);
 	const [selectedItem, setSelectedItem] = useState(null);
 
+	// confirmation modal state
+	const [showConfirmModal, setShowConfirmModal] = useState(false);
+	const [confirmItem, setConfirmItem] = useState(null);
+
 	const navigate = useNavigate();
 	const cleanupTimerRef = useRef(null);
 
@@ -68,7 +72,6 @@ function Shop({ user, db }) {
 
 	// — auto-cleanup expired activeItem via timeout
 	useEffect(() => {
-		// clear any existing timer
 		if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
 
 		if (!user || !userActiveItem) return;
@@ -78,10 +81,8 @@ function Shop({ user, db }) {
 		const now = Date.now();
 		const delta = expiresAtMs - now;
 		const userRef = doc(db, 'users', user.uid);
-		const expiredId = userActiveItem.id;
-		const newInv = { ...userOwns, [expiredId]: false };
-
 		const runCleanup = async () => {
+			const newInv = { ...userOwns, [userActiveItem.id]: false };
 			try {
 				await updateDoc(userRef, {
 					inventory: newInv,
@@ -94,15 +95,10 @@ function Shop({ user, db }) {
 			}
 		};
 
-		if (delta <= 0) {
-			runCleanup();
-		} else {
-			cleanupTimerRef.current = setTimeout(runCleanup, delta);
-		}
+		if (delta <= 0) runCleanup();
+		else cleanupTimerRef.current = setTimeout(runCleanup, delta);
 
-		return () => {
-			if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
-		};
+		return () => clearTimeout(cleanupTimerRef.current);
 	}, [userActiveItem, userOwns, user, db]);
 
 	// — shop items once
@@ -147,10 +143,15 @@ function Shop({ user, db }) {
 		}
 	};
 
+	// open the custom confirm dialog
+	const confirmAndPurchase = (item) => {
+		setConfirmItem(item);
+		setShowConfirmModal(true);
+	};
+
 	// — ACTIVATE: now persists id + expiresAt to users/{uid}.activeItem
 	const handleActivateClick = async (item) => {
 		const now = Date.now();
-		// reopen active session
 		if (
 			userActiveItem?.type === item.type &&
 			userActiveItem.expiresAt?.toMillis() > now
@@ -159,11 +160,9 @@ function Shop({ user, db }) {
 			setShowItemModal(true);
 			return;
 		}
-		// block if something else active
 		if (userActiveItem) {
 			return setTemporaryError('You already have an item active. Wait.');
 		}
-		// must own it
 		if (!userOwns[item.id]) {
 			return setTemporaryError(`You don’t own a ${item.name}.`);
 		}
@@ -209,12 +208,11 @@ function Shop({ user, db }) {
 
 	const renderModalContent = () => {
 		if (!selectedItem) return null;
-		const ActivationComponent =
-			activationComponents[selectedItem.type] || DefaultItem;
+		const Component = activationComponents[selectedItem.type] || DefaultItem;
 		return (
 			<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 				<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-					<ActivationComponent
+					<Component
 						user={user}
 						teamId={team.id}
 						team={team}
@@ -277,7 +275,7 @@ function Shop({ user, db }) {
 									<div className="flex space-x-2">
 										{!owns ? (
 											<button
-												onClick={() => handlePurchase(item)}
+												onClick={() => confirmAndPurchase(item)}
 												className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded transition"
 											>
 												Buy
@@ -300,6 +298,41 @@ function Shop({ user, db }) {
 						})}
 					</div>
 				</div>
+
+				{/* Confirmation Modal */}
+				{showConfirmModal && confirmItem && (
+					<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+						<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-sm">
+							<h3 className="text-2xl mb-4 text-center">Confirm Purchase</h3>
+							<p className="mb-6 text-center">
+								Are you sure you want to buy <strong>{confirmItem.name}</strong>{' '}
+								for <strong>💰 {confirmItem.price}</strong>?
+							</p>
+							<div className="flex justify-around">
+								<button
+									onClick={() => {
+										handlePurchase(confirmItem);
+										setShowConfirmModal(false);
+										setConfirmItem(null);
+									}}
+									className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded"
+								>
+									Yes
+								</button>
+								<button
+									onClick={() => {
+										setShowConfirmModal(false);
+										setConfirmItem(null);
+									}}
+									className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded"
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
+
 				{showItemModal && renderModalContent()}
 			</div>
 		</>
