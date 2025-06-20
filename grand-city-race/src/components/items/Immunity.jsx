@@ -36,13 +36,30 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 	const expiresAt =
 		userActiveItem?.type === 'immunity' ? userActiveItem.expiresAt : null;
 
-	// If activeItem exists, mark applied and clear refund
 	useEffect(() => {
-		if (expiresAt) {
-			setHasApplied(true);
-			setRefundAvailable(false);
+		if (!expiresAt) return;
+
+		// Only clear refund if they're no longer cursed
+		async function clearRefundIfApplicable() {
+			try {
+				const teamRef = doc(db, 'teams', teamId);
+				const snap = await getDoc(teamRef);
+				const data = snap.data() || {};
+				const nowMs = Timestamp.now().toMillis();
+
+				const stillCursed = (data.cursedUntil?.toMillis() || 0) > nowMs;
+				if (!stillCursed) {
+					setHasApplied(true);
+					setRefundAvailable(false);
+				}
+				// else: leave refundAvailable = true
+			} catch (err) {
+				console.error('Failed to re-check curse status:', err);
+			}
 		}
-	}, [expiresAt]);
+
+		clearRefundIfApplicable();
+	}, [expiresAt, db, teamId]);
 
 	// On mount or when expiresAt changes: apply immunity if not already applied
 	useEffect(() => {
@@ -57,7 +74,10 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				const data = snap.data() || {};
 				const now = Timestamp.now();
 
-				if (data.immuneUntil?.toMillis() > now.toMillis()) {
+				if (
+					data.immuneUntil?.toMillis() > now.toMillis() ||
+					data.cursedUntil?.toMillis() > now.toMillis()
+				) {
 					setRefundAvailable(true);
 				} else {
 					// apply immunity
@@ -144,7 +164,7 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 			{refundAvailable ? (
 				<div>
 					<p className="mb-4">
-						Your team is already immune. Here’s your money back.
+						Your team is already immune or cursed. Here’s your money back.
 					</p>
 					<button
 						onClick={handleBonusClaim}
