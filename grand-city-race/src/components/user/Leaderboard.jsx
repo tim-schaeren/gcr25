@@ -97,6 +97,9 @@ function Leaderboard({ db }) {
 						<div
 							key={team.id}
 							className="relative bg-gray-800 rounded-2xl p-6 shadow-2xl hover:shadow-inner transition-all"
+							style={{
+								background: `radial-gradient(circle at top left, ${team.color}, transparent 70%)`,
+							}}
 						>
 							{/* Decorative crest accent */}
 
