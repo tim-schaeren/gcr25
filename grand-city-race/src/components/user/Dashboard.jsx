@@ -484,7 +484,7 @@ function Dashboard({ user, db }) {
 
 			{/* Main Card */}
 			<div
-				className="bg-white mt-24 p-6 rounded-2xl shadow-md shadow-white max-h-[70vh]"
+				className="bg-white mt-24 p-6 rounded-2xl shadow-md shadow-white"
 				style={
 					team
 						? {
