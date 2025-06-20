@@ -119,7 +119,7 @@ function Login({ auth }) {
 					</button>
 
 					{/* Forgot Password Button (temporarily hidden) */}
-					{false && (
+					{true && (
 						<button
 							onClick={handleResetPassword}
 							className="w-full text-center bg-transparent border border-gray-500 text-gray-300 font-bold py-3 rounded-lg shadow-md hover:bg-gray-700 transition duration-300"
