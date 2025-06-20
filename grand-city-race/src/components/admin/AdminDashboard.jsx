@@ -5,6 +5,7 @@ import {
 	onSnapshot,
 	query,
 	orderBy,
+	where,
 } from 'firebase/firestore';
 import AdminSidebar from './AdminSidebar';
 
@@ -16,6 +17,8 @@ function AdminDashboard({ db }) {
 	const [itemsMap, setItemsMap] = useState({});
 	const [map, setMap] = useState(null);
 	const [isTabActive, setIsTabActive] = useState(true);
+	const [expandedTeams, setExpandedTeams] = useState([]);
+	const [teamMembers, setTeamMembers] = useState({});
 
 	// Refs to store AdvancedMarkerElement markers and polyline trails by user ID.
 	const markersByUser = useRef({});
@@ -67,6 +70,26 @@ function AdminDashboard({ db }) {
 		});
 		return () => unsubscribe();
 	}, [db]);
+
+	// Called when you click on a team-name
+	const toggleTeam = async (teamId) => {
+		// if already expanded, just contract
+		if (expandedTeams.includes(teamId)) {
+			setExpandedTeams(expandedTeams.filter((id) => id !== teamId));
+			return;
+		}
+
+		// otherwise, fetch members if not already in state
+		if (!teamMembers[teamId]) {
+			const q = query(collection(db, 'users'), where('teamId', '==', teamId));
+			const snap = await getDocs(q);
+			const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+			setTeamMembers((m) => ({ ...m, [teamId]: list }));
+		}
+
+		// expand it
+		setExpandedTeams((arr) => [...arr, teamId]);
+	};
 
 	// Real‑time quest updates.
 	useEffect(() => {
@@ -134,7 +157,7 @@ function AdminDashboard({ db }) {
 		}
 	}, []);
 
-	// ---------- Markers for Current User Locations (unchanged) ----------
+	// ---------- Markers for Current User Locations ----------
 	useEffect(() => {
 		if (!map) return;
 
@@ -530,6 +553,7 @@ function AdminDashboard({ db }) {
 										key={team.id}
 										className="odd:bg-white even:bg-gray-100 hover:bg-gray-200"
 									>
+										{/* Color dot */}
 										<td className="border border-gray-300 p-4">
 											<div
 												className="w-4 h-4 inline-block rounded"
@@ -537,9 +561,46 @@ function AdminDashboard({ db }) {
 												title={team.color.name}
 											></div>
 										</td>
-										<td className="border border-gray-300 p-4 text-black font-semibold">
-											{team.name}
+
+										{/* Team name with pop‐over */}
+										<td className="border border-gray-300 p-4 text-left relative">
+											<div className="relative inline-block">
+												<button
+													onClick={() => toggleTeam(team.id)}
+													className="font-semibold text-blue-600 hover:underline"
+												>
+													{team.name}
+												</button>
+
+												{expandedTeams.includes(team.id) && (
+													<div
+														className="
+                absolute top-full left-0 mt-2
+                w-48
+                bg-white border border-gray-300
+                shadow-lg rounded-lg
+                p-3
+                z-20
+              "
+													>
+														<p className="font-semibold mb-1">Members:</p>
+														{teamMembers[team.id]?.length ? (
+															<ul className="text-sm text-gray-700 list-disc list-inside space-y-1">
+																{teamMembers[team.id].map((u) => (
+																	<li key={u.id}>{u.name || u.email}</li>
+																))}
+															</ul>
+														) : (
+															<p className="text-sm text-gray-500">
+																No members found.
+															</p>
+														)}
+													</div>
+												)}
+											</div>
 										</td>
+
+										{/* Other columns */}
 										<td className="border border-gray-300 p-4 text-black">
 											{getQuestDisplay(team)}
 										</td>

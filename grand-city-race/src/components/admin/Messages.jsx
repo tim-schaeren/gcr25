@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
 	collection,
 	onSnapshot,
@@ -29,6 +29,8 @@ function MessagesPage({ db }) {
 	const chatEndRef = useRef(null);
 	const initialTeamSnapshot = useRef(true);
 
+	const [allMembers, setAllMembers] = useState([]);
+
 	// 1) Fetch teams in real time
 	useEffect(() => {
 		const teamsRef = collection(db, 'teams');
@@ -40,6 +42,14 @@ function MessagesPage({ db }) {
 			setTeams(teamList);
 		});
 		return () => unsubscribe();
+	}, [db]);
+
+	// 1.5) Fetch team-members
+	useEffect(() => {
+		const unsub = onSnapshot(collection(db, 'users'), (snap) =>
+			setAllMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+		);
+		return () => unsub();
 	}, [db]);
 
 	// 2) Track which teams have unread “team → admin” messages
@@ -61,6 +71,35 @@ function MessagesPage({ db }) {
 		});
 		return () => unsubscribe();
 	}, [db]);
+
+	const membersByTeam = useMemo(() => {
+		const m = {};
+		teams.forEach((t) => {
+			m[t.id] = [];
+		});
+		allMembers.forEach((u) => {
+			if (u.teamId && m[u.teamId]) m[u.teamId].push(u.name || u.email);
+		});
+		return m;
+	}, [teams, allMembers]);
+
+	// Sort teams so unread ones come first
+	const sortedTeams = useMemo(() => {
+		return teams
+			.slice() // copy so we don’t mutate original
+			.sort((a, b) => {
+				// selected team at very top
+				if (a.id === selectedTeamId) return -1;
+				if (b.id === selectedTeamId) return 1;
+				// then unread teams
+				const aUnread = unreadTeams.has(a.id);
+				const bUnread = unreadTeams.has(b.id);
+				if (aUnread && !bUnread) return -1;
+				if (!aUnread && bUnread) return 1;
+				// otherwise keep original order
+				return 0;
+			});
+	}, [teams, unreadTeams, selectedTeamId]);
 
 	// 3) When a team is selected, listen for both directions and handle “read” logic
 	useEffect(() => {
@@ -257,20 +296,33 @@ function MessagesPage({ db }) {
 						</h2>
 						<div className="flex flex-grow overflow-hidden">
 							{/* Team list */}
-							<div className="w-1/4 border-r border-gray-300 overflow-y-auto">
-								{teams.map((team) => (
+							<div className="w-1/4 border-r border-gray-300 h-[calc(100vh-350px)] overflow-y-auto">
+								{sortedTeams.map((team) => (
 									<div
 										key={team.id}
 										onClick={() => setSelectedTeamId(team.id)}
-										className={`relative p-3 cursor-pointer hover:bg-gray-200 flex items-center justify-between ${
-											selectedTeamId === team.id
-												? 'bg-gray-200 font-semibold'
-												: ''
-										}`}
+										className={`
+									  relative p-3 cursor-pointer hover:bg-gray-200
+									  flex flex-col space-y-1
+									  ${selectedTeamId === team.id ? 'bg-gray-200 font-semibold' : ''}
+									`}
 									>
-										<span>{team.name}</span>
+										<span className="font-semibold">{team.name}</span>
+
+										{membersByTeam[team.id]?.length ? (
+											<ul className="list-none list-inside text-sm text-gray-500 ml-4 space-y-1">
+												{membersByTeam[team.id].map((member) => (
+													<li key={member}>{member}</li>
+												))}
+											</ul>
+										) : (
+											<span className="text-sm text-gray-500 ml-4">
+												No members.
+											</span>
+										)}
+
 										{unreadTeams.has(team.id) && (
-											<span className="absolute top-2 right-2 block h-2 w-2 bg-red-500 rounded-full" />
+											<span className="absolute top-3 right-3 h-2 w-2 bg-red-500 rounded-full" />
 										)}
 									</div>
 								))}
