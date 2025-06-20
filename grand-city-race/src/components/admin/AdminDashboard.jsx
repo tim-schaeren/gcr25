@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
 	collection,
 	getDocs,
@@ -11,6 +11,9 @@ import AdminSidebar from './AdminSidebar';
 function AdminDashboard({ db }) {
 	const [users, setUsers] = useState([]);
 	const [teams, setTeams] = useState([]);
+	const [quests, setQuests] = useState([]);
+	const [members, setMembers] = useState([]);
+	const [itemsMap, setItemsMap] = useState({});
 	const [map, setMap] = useState(null);
 	const [isTabActive, setIsTabActive] = useState(true);
 
@@ -64,6 +67,43 @@ function AdminDashboard({ db }) {
 		});
 		return () => unsubscribe();
 	}, [db]);
+
+	// Real‑time quest updates.
+	useEffect(() => {
+		const questRef = collection(db, 'quests');
+		const unsubscribe = onSnapshot(questRef, (snapshot) => {
+			const questList = snapshot.docs.map((doc) => ({
+				id: doc.id,
+				...doc.data(),
+				name: doc.data().name || ' ',
+			}));
+			setQuests(questList);
+		});
+		return () => unsubscribe();
+	}, [db]);
+
+	// build a fast lookup from questID → questName
+	const questMap = useMemo(() => {
+		return quests.reduce((m, q) => {
+			m[q.id] = q.name;
+			return m;
+		}, {});
+	}, [quests]);
+
+	// decide what to show in the "Current Quest" column
+	function getQuestDisplay(team) {
+		const curr = team.progress?.currentQuest;
+		if (curr) {
+			return questMap[curr] || 'Unknown Quest';
+		}
+		const solved = team.progress?.previousQuests || [];
+		const maxSeq = solved.reduce((max, id) => {
+			const seq = quests.find((q) => q.id === id)?.sequence || 0;
+			return Math.max(max, seq);
+		}, 0);
+		const nextQuest = quests.find((q) => q.sequence === maxSeq + 1);
+		return nextQuest ? `Looking for ${nextQuest.name}` : 'No further quests';
+	}
 
 	// Initialize the map.
 	useEffect(() => {
@@ -317,6 +357,124 @@ function AdminDashboard({ db }) {
 		fetchQuests();
 	}, [map, db]);
 
+	//  ── Items lookup ──
+	useEffect(() => {
+		const itemsRef = collection(db, 'items');
+		const unsubscribe = onSnapshot(itemsRef, (snap) => {
+			const map = {};
+			snap.docs.forEach((doc) => {
+				map[doc.id] = doc.data().name || 'Unnamed Item';
+			});
+			setItemsMap(map);
+		});
+		return () => unsubscribe();
+	}, [db]);
+
+	//  ── All users (to group by teamId) ──
+	useEffect(() => {
+		const usersRef = collection(db, 'users');
+		const unsubscribe = onSnapshot(usersRef, (snap) => {
+			const all = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+			setMembers(all);
+		});
+		return () => unsubscribe();
+	}, [db]);
+
+	// teamId → "2×Lantern, 1×Compass"
+	const teamInventory = useMemo(() => {
+		const tally = {};
+		// init empty buckets
+		teams.forEach((t) => {
+			tally[t.id] = {};
+		});
+
+		members.forEach((u) => {
+			const inv = u.inventory || {};
+			if (!u.teamId || !tally[u.teamId]) return;
+			Object.entries(inv).forEach(([itemId, has]) => {
+				if (has) {
+					tally[u.teamId][itemId] = (tally[u.teamId][itemId] || 0) + 1;
+				}
+			});
+		});
+
+		// stringify
+		const summary = {};
+		Object.entries(tally).forEach(([teamId, items]) => {
+			const parts = Object.entries(items).map(([itemId, count]) => {
+				const name = itemsMap[itemId] || 'Unknown';
+				return `${count}×${name}`;
+			});
+			summary[teamId] = parts.join(', ');
+		});
+		return summary;
+	}, [teams, members, itemsMap]);
+
+	// compute "in effect" items per team
+	const teamActiveItems = useMemo(() => {
+		const now = Date.now();
+		// build a fresh map: teamId → { itemId: count }
+		const activeMap = {};
+		teams.forEach((t) => {
+			activeMap[t.id] = {};
+		});
+
+		members.forEach((u) => {
+			const a = u.activeItem;
+			if (!u.teamId || !activeMap[u.teamId] || !a?.id) return;
+			// convert Firestore Timestamp or Date/string to ms
+			let expMs = a.expiresAt?.toMillis
+				? a.expiresAt.toMillis()
+				: a.expiresAt instanceof Date
+				? a.expiresAt.getTime()
+				: new Date(a.expiresAt).getTime();
+			if (expMs > now) {
+				activeMap[u.teamId][a.id] = (activeMap[u.teamId][a.id] || 0) + 1;
+			}
+		});
+
+		// stringify into "Name" or "2×Name"
+		const summary = {};
+		Object.entries(activeMap).forEach(([teamId, items]) => {
+			const parts = Object.entries(items).map(([itemId, count]) => {
+				const name = itemsMap[itemId] || 'Unknown';
+				return count > 1 ? `${count}×${name}` : name;
+			});
+			summary[teamId] = parts.join(', ');
+		});
+		return summary;
+	}, [teams, members, itemsMap]);
+
+	// compute each team’s “state”: cursed, immune, or none
+	const teamState = useMemo(() => {
+		const now = Date.now();
+		// map teamId → state string
+		const map = {};
+		teams.forEach((t) => {
+			const cursedMs = t.cursedUntil?.toMillis
+				? t.cursedUntil.toMillis()
+				: t.cursedUntil instanceof Date
+				? t.cursedUntil.getTime()
+				: new Date(t.cursedUntil).getTime();
+			const immuneMs = t.immuneUntil?.toMillis
+				? t.immuneUntil.toMillis()
+				: t.immuneUntil instanceof Date
+				? t.immuneUntil.getTime()
+				: new Date(t.immuneUntil).getTime();
+
+			if (cursedMs > now) {
+				// find the name of the team that cursed them
+				const by = teams.find((team2) => team2.id === t.cursedBy);
+				map[t.id] = by ? `cursed by ${by.name}` : 'cursed';
+			} else if (immuneMs > now) {
+				map[t.id] = 'immune';
+			} else {
+				map[t.id] = 'none';
+			}
+		});
+		return map;
+	}, [teams]);
+
 	return (
 		<div className="min-h-screen h-screen min-w-screen w-screen bg-gray-100 py-20 px-4">
 			{/* Prevent Mobile Access */}
@@ -361,6 +519,9 @@ function AdminDashboard({ db }) {
 									<th className="border border-gray-300 p-4 text-black">
 										In Effect
 									</th>
+									<th className="border border-gray-300 p-4 text-black">
+										State
+									</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -380,7 +541,7 @@ function AdminDashboard({ db }) {
 											{team.name}
 										</td>
 										<td className="border border-gray-300 p-4 text-black">
-											{team.progress?.currentQuest || 'Not started'}
+											{getQuestDisplay(team)}
 										</td>
 										<td className="border border-gray-300 p-4 text-black">
 											{team.solvedQuests}
@@ -389,10 +550,13 @@ function AdminDashboard({ db }) {
 											{team.currency || 'Broke'}
 										</td>
 										<td className="border border-gray-300 p-4 text-black">
-											item so and so
+											{teamInventory[team.id] || '—'}
 										</td>
 										<td className="border border-gray-300 p-4 text-black">
-											item so and so
+											{teamActiveItems[team.id] || '—'}
+										</td>
+										<td className="border border-gray-300 p-4 text-black">
+											{teamState[team.id]}
 										</td>
 									</tr>
 								))}
