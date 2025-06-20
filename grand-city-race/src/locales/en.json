@@ -9,5 +9,35 @@
     "hotline": "Hotline",
     "askGM": "Ask your gamemasters to give you a hint on where to go.",
     "findLocation": "Find the location to activate the quest.",
-    "locationDenied": "Location access denied. Please enable location services."
+    "locationDenied": "Location access denied. Please enable location services.",
+    "shop": {
+        "back": "←",
+        "title": "🛒 Shop",
+        "balance": "In the Bank: {{amount}}",
+        "itemPrice": "💰 {{price}}",
+        "duration": "Duration: {{duration}} minutes",
+        "buttons": {
+            "buy": "Buy",
+            "use": "Use",
+            "open": "Open"
+        },
+        "confirm": {
+            "title": "Confirm Purchase",
+            "question": "Are you sure you want to buy {{name}} for 💰 {{price}}?",
+            "yes": "Yes",
+            "cancel": "Cancel"
+        },
+        "errors": {
+            "loadTeam": "Couldn’t load team data.",
+            "loadItems": "Error loading items.",
+            "noTeam": "No team!",
+            "notEnoughFunds": "Not enough funds!",
+            "purchaseFailed": "Purchase failed.",
+            "alreadyActive": "You already have an item active. Wait.",
+            "notOwn": "You don’t own a {{name}}."
+        },
+        "messages": {
+            "bought": "You bought: {{name}}"
+        }
+    }
 }

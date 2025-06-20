@@ -5,7 +5,7 @@ import en from './locales/en.json';
 import de from './locales/de.json';
 
 // try to load a saved language, default to 'en'
-const savedLang = localStorage.getItem('lang') || 'en';
+const savedLang = localStorage.getItem('lang') || 'de';
 
 i18n
   .use(initReactI18next)
@@ -15,7 +15,7 @@ i18n
       de: { translation: de },
     },
     lng: savedLang,
-    fallbackLng: 'en',
+    fallbackLng: 'de',
     interpolation: {
       escapeValue: false, // react already safes from xss
     },

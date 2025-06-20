@@ -4,7 +4,7 @@ import Compass from '../items/Compass';
 import Curse from '../items/Curse';
 import Immunity from '../items/Immunity';
 import DefaultItem from '../items/DefaultItem';
-
+import { useTranslation } from 'react-i18next';
 import {
 	collection,
 	getDocs,
@@ -17,6 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 function Shop({ user, db }) {
+	const { t } = useTranslation();
 	const [items, setItems] = useState([]);
 	const [currency, setCurrency] = useState(0);
 	const [team, setTeam] = useState(null);
@@ -47,14 +48,14 @@ function Shop({ user, db }) {
 				if (!data.teamId) throw new Error('No team');
 				const teamRef = doc(db, 'teams', data.teamId);
 				return onSnapshot(teamRef, (tsnap) => {
-					const t = tsnap.data();
-					setTeam({ id: data.teamId, ...t });
-					setCurrency(t.currency || 0);
+					const tData = tsnap.data();
+					setTeam({ id: data.teamId, ...tData });
+					setCurrency(tData.currency || 0);
 				});
 			})
 			.catch((err) => {
 				console.error(err);
-				setTemporaryError('Couldn’t load team data.');
+				setTemporaryError(t('shop.errors.loadTeam'));
 			});
 	}, [user, db]);
 
@@ -107,7 +108,7 @@ function Shop({ user, db }) {
 			.then((qs) => setItems(qs.docs.map((d) => ({ id: d.id, ...d.data() }))))
 			.catch((err) => {
 				console.error(err);
-				setTemporaryError('Error loading items.');
+				setTemporaryError(t('shop.errors.loadItems'));
 			});
 	}, [db]);
 
@@ -119,8 +120,9 @@ function Shop({ user, db }) {
 
 	// — BUY: deduct team funds, set user inventory boolean to true
 	const handlePurchase = async (item) => {
-		if (!team) return setTemporaryError('No team!');
-		if (currency < item.price) return setTemporaryError('Not enough funds!');
+		if (!team) return setTemporaryError(t('shop.errors.noTeam'));
+		if (currency < item.price)
+			return setTemporaryError(t('shop.errors.notEnoughFunds'));
 
 		try {
 			const teamRef = doc(db, 'teams', team.id);
@@ -128,18 +130,18 @@ function Shop({ user, db }) {
 			const newCur = tSnap.data().currency - item.price;
 			await updateDoc(teamRef, { currency: newCur });
 			setCurrency(newCur);
-			setTeam((t) => ({ ...t, currency: newCur }));
+			setTeam((prev) => ({ ...prev, currency: newCur }));
 
 			const userRef = doc(db, 'users', user.uid);
 			const newInv = { ...userOwns, [item.id]: true };
 			await updateDoc(userRef, { inventory: newInv });
 			setUserOwns(newInv);
 
-			setActiveMessage(`You bought: ${item.name}`);
+			setActiveMessage(t('shop.messages.bought', { name: item.name }));
 			setTimeout(() => setActiveMessage(''), 3000);
 		} catch (err) {
 			console.error(err);
-			setTemporaryError('Purchase failed.');
+			setTemporaryError(t('shop.errors.purchaseFailed'));
 		}
 	};
 
@@ -161,10 +163,10 @@ function Shop({ user, db }) {
 			return;
 		}
 		if (userActiveItem) {
-			return setTemporaryError('You already have an item active. Wait.');
+			return setTemporaryError(t('shop.errors.alreadyActive'));
 		}
 		if (!userOwns[item.id]) {
-			return setTemporaryError(`You don’t own a ${item.name}.`);
+			return setTemporaryError(t('shop.errors.notOwn', { name: item.name }));
 		}
 
 		const expiresAt = Timestamp.fromMillis(now + item.duration * 60 * 1000);
@@ -244,18 +246,20 @@ function Shop({ user, db }) {
 			)}
 
 			<div className="min-h-screen p-6">
-				<div className="fixed top-2 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
+				<div className="fixed top-2 left-0 right-0 h-16 flex items-center px-4 z-10">
 					<button
 						onClick={() => navigate('/dashboard')}
 						className="mr-4 text-3xl text-parchment bg-charcoal"
 					>
-						←
+						{t('shop.back')}
 					</button>
 				</div>
 				<div className="max-w-4xl mx-auto">
-					<h2 className="text-3xl mt-10 font-bold text-center mb-4">🛒 Shop</h2>
+					<h2 className="text-3xl mt-10 font-bold text-center mb-4">
+						{t('shop.title')}
+					</h2>
 					<h3 className="text-xl text-center font-bold mb-8">
-						In the Bank: {currency}
+						{t('shop.balance', { amount: currency })}
 					</h3>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{items.map((item) => {
@@ -268,9 +272,13 @@ function Shop({ user, db }) {
 								<div key={item.id} className="border p-4 rounded-lg">
 									<h4 className="text-2xl font-semibold mb-2">{item.name}</h4>
 									<p className="mb-2">{item.description}</p>
-									<p className="mb-2 text-xl font-bold">💰 {item.price}</p>
+									<p className="mb-2 text-xl font-bold">
+										{t('shop.itemPrice', { price: item.price })}
+									</p>
 									{typeof item.duration === 'number' && item.duration >= 1 && (
-										<p className="mb-2">Duration: {item.duration} minutes</p>
+										<p className="mb-2">
+											{t('shop.duration', { duration: item.duration })}
+										</p>
 									)}
 									<div className="flex space-x-2">
 										{!owns ? (
@@ -278,7 +286,7 @@ function Shop({ user, db }) {
 												onClick={() => confirmAndPurchase(item)}
 												className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded transition"
 											>
-												Buy
+												{t('shop.buttons.buy')}
 											</button>
 										) : (
 											<button
@@ -289,7 +297,9 @@ function Shop({ user, db }) {
 														: 'bg-gray-600 cursor-not-allowed'
 												} text-white font-semibold py-1 px-3 rounded transition`}
 											>
-												{isSameActive ? 'Open' : 'Use'}
+												{isSameActive
+													? t('shop.buttons.open')
+													: t('shop.buttons.use')}
 											</button>
 										)}
 									</div>
@@ -303,10 +313,14 @@ function Shop({ user, db }) {
 				{showConfirmModal && confirmItem && (
 					<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
 						<div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-sm">
-							<h3 className="text-2xl mb-4 text-center">Confirm Purchase</h3>
+							<h3 className="text-2xl mb-4 text-center">
+								{t('shop.confirm.title')}
+							</h3>
 							<p className="mb-6 text-center">
-								Are you sure you want to buy <strong>{confirmItem.name}</strong>{' '}
-								for <strong>💰 {confirmItem.price}</strong>?
+								{t('shop.confirm.question', {
+									name: confirmItem.name,
+									price: confirmItem.price,
+								})}
 							</p>
 							<div className="flex justify-around">
 								<button
@@ -317,7 +331,7 @@ function Shop({ user, db }) {
 									}}
 									className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded"
 								>
-									Yes
+									{t('shop.confirm.yes')}
 								</button>
 								<button
 									onClick={() => {
@@ -326,7 +340,7 @@ function Shop({ user, db }) {
 									}}
 									className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded"
 								>
-									Cancel
+									{t('shop.confirm.cancel')}
 								</button>
 							</div>
 						</div>

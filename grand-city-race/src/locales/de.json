@@ -9,5 +9,35 @@
   "hotline": "Hotline",
   "askGM": "Frag deine Gamemaster nach einem Hinweis.",
   "findLocation": "Finde den richtigen Ort um das Rätsel zu starten.",
-  "locationDenied": "Standortservices funktionieren nicht. Bitte erlaube deinem Browser den Standort zu teilen."
+  "locationDenied": "Standortservices funktionieren nicht. Bitte erlaube deinem Browser den Standort zu teilen.",
+  "shop": {
+    "back": "←",
+    "title": "🛒 Shop",
+    "balance": "Im Tresor: {{amount}}",
+    "itemPrice": "💰 {{price}}",
+    "duration": "Dauer: {{duration}} Minuten",
+    "buttons": {
+      "buy": "Kaufen",
+      "use": "Benutzen",
+      "open": "Öffnen"
+    },
+    "confirm": {
+      "title": "Kauf bestätigen",
+      "question": "Bist du sicher, dass du {{name}} für 💰 {{price}} kaufen möchtest?",
+      "yes": "Ja",
+      "cancel": "Abbrechen"
+    },
+    "errors": {
+      "loadTeam": "Konnte Teamdaten nicht laden.",
+      "loadItems": "Fehler beim Laden der Artikel.",
+      "noTeam": "Kein Team!",
+      "notEnoughFunds": "Nicht genug Guthaben!",
+      "purchaseFailed": "Kauf fehlgeschlagen.",
+      "alreadyActive": "Du hast bereits ein aktives Item. Warte.",
+      "notOwn": "Du besitzt keine/n {{name}}."
+    },
+    "messages": {
+      "bought": "Du hast ''{{name}}'' gekauft"
+    }
+  }
 }
