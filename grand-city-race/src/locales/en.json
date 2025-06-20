@@ -39,5 +39,19 @@
         "messages": {
             "bought": "You bought: {{name}}"
         }
+    },
+    "compass": {
+        "errors": {
+            "loadNextQuest": "Failed to load next quest.",
+            "geolocationUnsupported": "Geolocation not supported by this browser.",
+            "permissionDenied": "Compass permission denied.",
+            "permissionFailed": "Failed to get compass permission."
+        },
+        "calibration": "Wave your device in a figure-8 to calibrate the compass.",
+        "notAvailableActiveQuest": "Compass not available – solve your active quest first.",
+        "arrival": {
+            "message": "You’ve reached the quest-area!",
+            "continue": "Continue"
+        }
     }
 }

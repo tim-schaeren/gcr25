@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import compassBase from '../../assets/compass_base.png';
 import compassNeedle from '../../assets/compass_needle.png';
+import { useTranslation } from 'react-i18next';
 import {
 	collection,
 	getDocs,
@@ -77,6 +78,7 @@ function useCompass(
 		)
 			return;
 
+		// bearing
 		const dLon = toRadians(targetLocation.lng - userLocation.lng);
 		const φ1 = toRadians(userLocation.lat);
 		const φ2 = toRadians(targetLocation.lat);
@@ -86,6 +88,7 @@ function useCompass(
 			Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLon);
 		let brng = (toDegrees(Math.atan2(y, x)) + 360) % 360;
 
+		// distance
 		const R = 6371000;
 		const dLat = toRadians(targetLocation.lat - userLocation.lat);
 		const dLon2 = toRadians(targetLocation.lng - userLocation.lng);
@@ -97,6 +100,7 @@ function useCompass(
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 		const dist = R * c;
 
+		// rotation smoothing
 		const rawRotation = brng - deviceHeading;
 		let newRotation = ((rawRotation % 360) + 360) % 360;
 		if (prevRotationRef.current !== null) {
@@ -110,6 +114,7 @@ function useCompass(
 		setNeedleRotation(newRotation);
 		setDistance(dist);
 
+		// arrival
 		const radius = targetLocation.fence ?? fence;
 		if (dist <= radius - 5) {
 			setArrivalReached(true);
@@ -166,6 +171,7 @@ function useNextQuest(db, team) {
 }
 
 const Compass = ({ user, team, db, onClose, onUsed }) => {
+	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const [positionError, setPositionError] = useState(null);
 	const [orientationError, setOrientationError] = useState(null);
@@ -204,7 +210,7 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 			if (secs === 0 && !firedRef.current) {
 				firedRef.current = true;
 				onClose();
-				onUsed(); // clear your user inventory/activeItem
+				onUsed();
 			}
 		};
 
@@ -216,7 +222,7 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 	// Geolocation
 	useEffect(() => {
 		if (!navigator.geolocation) {
-			setPositionError('Geolocation not supported by this browser.');
+			setPositionError(t('compass.errors.geolocationUnsupported'));
 			return;
 		}
 		const throttled = defaultThrottle((pos) => {
@@ -232,7 +238,7 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 			{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
 		);
 		return () => navigator.geolocation.clearWatch(id);
-	}, []);
+	}, [t]);
 
 	// Device orientation
 	useEffect(() => {
@@ -246,17 +252,17 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 				.then((res) => {
 					if (res === 'granted')
 						window.addEventListener('deviceorientation', handler, true);
-					else setOrientationError('Compass permission denied.');
+					else setOrientationError(t('compass.errors.permissionDenied'));
 				})
 				.catch((err) => {
 					console.error(err);
-					setOrientationError('Failed to get compass permission.');
+					setOrientationError(t('compass.errors.permissionFailed'));
 				});
 		} else {
 			window.addEventListener('deviceorientation', handler, true);
 		}
 		return () => window.removeEventListener('deviceorientation', handler, true);
-	}, []);
+	}, [t]);
 
 	const { needleRotation, distance, arrivalReached } = useCompass(
 		userLocation,
@@ -291,33 +297,36 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 		);
 	}
 
+	// Calibration hint
 	if (!orientationError && deviceHeading == null) {
 		return (
 			<div className="p-4 text-yellow-300" role="status">
-				Wave your device in a figure-8 to calibrate the compass.
+				{t('compass.calibration')}
 			</div>
 		);
 	}
 
+	// Active quest blocking
 	if (hasActive) {
 		return (
 			<div className="relative flex flex-col items-center p-4">
 				<button
-					aria-label="Close compass"
+					aria-label={t('compass.close')}
 					className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
 					onClick={onClose}
 				>
 					✕
 				</button>
-				<p>Compass not available – solve your active quest first.</p>
+				<p>{t('compass.notAvailableActiveQuest')}</p>
 			</div>
 		);
 	}
 
+	// Main compass UI
 	return (
 		<div className="relative flex flex-col items-center p-4">
 			<button
-				aria-label="Close compass"
+				aria-label={t('compass.close')}
 				className="absolute top-2 right-2 text-white bg-gray-800 rounded-full p-2 z-10"
 				onClick={onClose}
 			>
@@ -331,7 +340,7 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 				</div>
 			)}
 
-			{/* Compass UI */}
+			{/* Compass */}
 			<div className="relative" style={{ width: '300px', height: '300px' }}>
 				<img src={compassBase} alt="Compass base" className="w-full h-full" />
 				<img
@@ -353,7 +362,7 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 				{arrivalReached && (
 					<div className="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center p-4">
 						<div className="text-xl font-bold mb-4 text-center text-charcoal">
-							You’ve reached the quest-area!
+							{t('compass.arrival.message')}
 						</div>
 						<button
 							onClick={() => {
@@ -361,7 +370,7 @@ const Compass = ({ user, team, db, onClose, onUsed }) => {
 							}}
 							className="px-4 py-2 bg-blue-600 text-white rounded shadow"
 						>
-							Continue
+							{t('compass.arrival.continue')}
 						</button>
 					</div>
 				)}

@@ -8,8 +8,8 @@
   "items": "items",
   "hotline": "Hotline",
   "askGM": "Frag deine Gamemaster nach einem Hinweis.",
-  "findLocation": "Finde den richtigen Ort um das Rätsel zu starten.",
-  "locationDenied": "Standortservices funktionieren nicht. Bitte erlaube deinem Browser den Standort zu teilen.",
+  "findLocation": "Finde den richtigen Ort um die Quest zu starten.",
+  "locationDenied": "Standortservices funktionieren nicht. Bitte erlaube deinem Browser deinen Standort zu teilen.",
   "shop": {
     "back": "←",
     "title": "🛒 Shop",
@@ -39,5 +39,20 @@
     "messages": {
       "bought": "Du hast ''{{name}}'' gekauft"
     }
+  },
+  "compass": {
+    "errors": {
+      "loadNextQuest": "Nächste Quest konnte nicht geladen werden.",
+      "geolocationUnsupported": "Geolokalisierung wird von diesem Browser nicht unterstützt.",
+      "permissionDenied": "Kompass-Berechtigung verweigert.",
+      "permissionFailed": "Fehler beim Anfordern der Kompass-Berechtigung."
+    },
+    "calibration": "Bewege dein Gerät in einer 8-form, um den Kompass zu kalibrieren.",
+    "notAvailableActiveQuest": "Kompass nicht verfügbar – löse zuerst deine aktive Quest.",
+    "arrival": {
+      "message": "Du hast das Quest-Gebiet erreicht!",
+      "continue": "Weiter"
+    },
+    "distanceFallback": "-- m"
   }
 }
