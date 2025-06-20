@@ -432,7 +432,7 @@ function Dashboard({ user, db }) {
 	const Icon = team ? crests[team.id] : '';
 
 	return (
-		<div className="bg-charcoal flex flex-col items-center justify-center min-h-screen p-6">
+		<div className="bg-charcoal flex flex-col items-center justify-start min-h-screen p-6">
 			{/* Messages Icon */}
 			{team && (
 				<div className="absolute top-3 left-3">
@@ -484,7 +484,7 @@ function Dashboard({ user, db }) {
 
 			{/* Main Card */}
 			<div
-				className="bg-white p-6 rounded-2xl shadow-md shadow-white"
+				className="bg-white mt-24 p-6 rounded-2xl shadow-md shadow-white max-h-[70vh]"
 				style={
 					team
 						? {
