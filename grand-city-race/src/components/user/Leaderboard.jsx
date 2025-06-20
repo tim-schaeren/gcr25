@@ -2,10 +2,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { crests } from '../../assets/crests/small';
 
 /**
  * Leaderboard component: shows top 3 teams in real-time.
- * Displays rank, team color dot, team name, and member names.
+ * Displays rank, team crest accent, team name, and member names.
  * Includes a back button to return to the previous screen.
  */
 
@@ -34,7 +35,7 @@ function Leaderboard({ db }) {
 			let lastScore = null;
 			let currentRank = 0;
 
-			const withRanks = list.map((team, idx) => {
+			const withRanks = list.map((team) => {
 				if (team.solvedQuests !== lastScore) {
 					currentRank += 1;
 					lastScore = team.solvedQuests;
@@ -42,9 +43,8 @@ function Leaderboard({ db }) {
 				return { ...team, rank: currentRank };
 			});
 
-			// now pick all teams whose rank is ≤ 3, and optionally filter out zeros:
 			const podium = withRanks
-				.filter((t) => t.solvedQuests > 0) // hide empty if you want
+				.filter((t) => t.solvedQuests > 0)
 				.filter((t) => t.rank <= 3);
 			setTeams(podium);
 		});
@@ -53,13 +53,12 @@ function Leaderboard({ db }) {
 
 	// Subscribe to users whose teamId is in the current top3
 	useEffect(() => {
-		// Clean previous listener
 		if (membersRef.current) membersRef.current();
-
 		if (teams.length === 0) {
 			setMembersMap({});
 			return;
 		}
+
 		const teamIds = teams.map((t) => t.id);
 		const usersRef = collection(db, 'users');
 		const q = query(usersRef, where('teamId', 'in', teamIds));
@@ -77,9 +76,9 @@ function Leaderboard({ db }) {
 	}, [db, teams]);
 
 	return (
-		<div className="min-h-screen  p-6 flex flex-col">
+		<div className="min-h-screen p-6 flex flex-col">
 			{/* Back Button */}
-			<div className="fixed top-2 left-0 right-0 h-16 w-16 flex items-center px-4 z-10">
+			<div className="fixed top-2 left-0 right-0 h-16 flex items-center px-4 z-10">
 				<button
 					onClick={() => navigate('/dashboard')}
 					className="mr-4 text-3xl text-parchment bg-charcoal"
@@ -90,34 +89,37 @@ function Leaderboard({ db }) {
 
 			{/* Teams List */}
 			<div className="flex-1 overflow-auto pt-20 space-y-6">
-				{teams.map((team, idx) => (
-					<div
-						key={team.id}
-						className="relative bg-gray-800 rounded-2xl p-6 shadow-2xl hover:shadow-inner transition-all"
-					>
-						{/* Decorative accent */}
-						<div
-							className="absolute inset-0 rounded-2xl opacity-20"
-							style={{
-								background: `radial-gradient(circle at top left, ${team.color}, transparent 70%)`,
-							}}
-						/>
+				{teams.map((team) => {
+					// pick the right crest or default
+					const Icon = crests[team.id] || crests.Default;
 
-						<div className="relative flex items-center mb-4">
-							<span className="text-3xl font-extrabold text-parchment mr-4">
-								{team.rank}.
-							</span>
-							<div
-								className="w-8 h-8 rounded-full ring-2 ring-parchment mr-3 flex-shrink-0"
-								style={{ backgroundColor: team.color }}
-							/>
-							<h3 className="text-2xl font-bold text-parchment">{team.name}</h3>
+					return (
+						<div
+							key={team.id}
+							className="relative bg-gray-800 rounded-2xl p-6 shadow-2xl hover:shadow-inner transition-all"
+						>
+							{/* Decorative crest accent */}
+
+							<div className="relative flex items-center mb-4">
+								<span className="text-3xl font-extrabold text-parchment mr-4">
+									{team.rank}.
+								</span>
+								<img
+									src={Icon}
+									alt={`${team.id} crest`}
+									className="w-12 h-12 mr-3 felx-shrink-0"
+								/>
+								<h3 className="text-2xl font-bold text-parchment">
+									{team.name}
+								</h3>
+							</div>
+
+							<p className="relative text-gray-300 text-lg font-bold">
+								{membersMap[team.id]?.join(', ') || '-'}
+							</p>
 						</div>
-						<p className="relative text-gray-300 text-lg font-bold">
-							{membersMap[team.id]?.join(', ') || '-'}
-						</p>
-					</div>
-				))}
+					);
+				})}
 			</div>
 		</div>
 	);
