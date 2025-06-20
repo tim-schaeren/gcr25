@@ -93,5 +93,11 @@
             "insufficientFunds": "Team {{name}} doesn’t have enough funds.",
             "process": "Failed to process robbery."
         }
+    },
+    "chat": {
+        "empty": "Say hello to your admins!",
+        "placeholder": "Type your message…",
+        "send": "Send",
+        "seen": "(seen)"
     }
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
 	collection,
 	onSnapshot,
@@ -14,6 +15,7 @@ import {
 } from 'firebase/firestore';
 
 function Chat({ user, db }) {
+	const { t } = useTranslation();
 	const [teamId, setTeamId] = useState(null);
 	const [adminToTeamMsgs, setAdminToTeamMsgs] = useState([]);
 	const [teamToAdminMsgs, setTeamToAdminMsgs] = useState([]);
@@ -28,36 +30,30 @@ function Chat({ user, db }) {
 	// and thereafter only mark newly arriving docs.
 	const initialAdminSnapshot = useRef(true);
 
-	// On mount: fetch the user's teamId
+	// Fetch teamId
 	useEffect(() => {
 		if (!user) return;
 		const fetchTeamId = async () => {
 			const userRef = doc(db, 'users', user.uid);
 			const userSnap = await getDoc(userRef);
-			if (userSnap.exists()) {
-				const data = userSnap.data();
-				if (data.teamId) {
-					setTeamId(data.teamId);
-				} else {
-					console.error('User has no teamId.');
-				}
+			if (userSnap.exists() && userSnap.data().teamId) {
+				setTeamId(userSnap.data().teamId);
 			}
 		};
 		fetchTeamId();
 	}, [user, db]);
 
-	// Once we know teamId, set up two real-time listeners:
+	// Listen for messages
 	useEffect(() => {
 		if (!teamId) return;
 
-		// (A) admin → team: listen for admin→team messages in ascending timestamp order.
+		// admin → team
 		const a2tQuery = query(
 			collection(db, 'messages'),
 			where('from', '==', 'admin'),
 			where('to', '==', teamId),
 			orderBy('timestamp', 'asc')
 		);
-
 		const unsubA2T = onSnapshot(a2tQuery, async (snapshot) => {
 			const allAdminMsgs = snapshot.docs.map((d) => ({
 				id: d.id,
@@ -65,107 +61,68 @@ function Chat({ user, db }) {
 			}));
 			setAdminToTeamMsgs(allAdminMsgs);
 
+			const batch = writeBatch(db);
+			let doCommit = false;
+
 			if (initialAdminSnapshot.current) {
-				// This is the very first time we get a snapshot after mounting.
-				// Let’s find all admin→team messages that are still unread (readByTeam === false),
-				// and batch‐mark them as read.
 				initialAdminSnapshot.current = false;
-
-				const batch = writeBatch(db);
-				let foundAnyUnread = false;
-
 				snapshot.docs.forEach((docSnap) => {
-					const data = docSnap.data();
-					if (!data.readByTeam) {
-						foundAnyUnread = true;
+					if (!docSnap.data().readByTeam) {
+						doCommit = true;
 						batch.update(doc(db, 'messages', docSnap.id), { readByTeam: true });
 					}
 				});
-
-				if (foundAnyUnread) {
-					try {
-						await batch.commit();
-					} catch (err) {
-						console.error(
-							'Error marking initial admin→team messages as read:',
-							err
-						);
-					}
-				}
 			} else {
-				// This is NOT the initial snapshot. That means “the user is already on this screen”
-				// and Firestore is telling us about changes (including any newly added docs).
-				// We only want to mark as read those docs which have just been added (and which
-				// are still unread).
-				const batch = writeBatch(db);
-				let foundNewUnread = false;
-
 				snapshot.docChanges().forEach((change) => {
-					// Only consider newly added documents (i.e. messages that arrived now).
-					if (change.type === 'added') {
-						const data = change.doc.data();
-						if (!data.readByTeam) {
-							foundNewUnread = true;
-							batch.update(doc(db, 'messages', change.doc.id), {
-								readByTeam: true,
-							});
-						}
+					if (change.type === 'added' && !change.doc.data().readByTeam) {
+						doCommit = true;
+						batch.update(doc(db, 'messages', change.doc.id), {
+							readByTeam: true,
+						});
 					}
 				});
+			}
 
-				if (foundNewUnread) {
-					try {
-						await batch.commit();
-					} catch (err) {
-						console.error(
-							'Error marking newly arrived admin→team message as read:',
-							err
-						);
-					}
+			if (doCommit) {
+				try {
+					await batch.commit();
+				} catch (err) {
+					console.error('Error marking read:', err);
 				}
 			}
 		});
 
-		// team → admin: normal listener for messages that this team sends to admin
+		// team → admin
 		const t2aQuery = query(
 			collection(db, 'messages'),
 			where('from', '==', teamId),
 			where('to', '==', 'admin'),
 			orderBy('timestamp', 'asc')
 		);
-		const unsubT2A = onSnapshot(t2aQuery, (snapshot) => {
-			const msgs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-			setTeamToAdminMsgs(msgs);
+		const unsubT2A = onSnapshot(t2aQuery, (snap) => {
+			setTeamToAdminMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 		});
 
 		return () => {
 			unsubA2T();
 			unsubT2A();
-			// If the user leaves this chat, reset the “initial” flag so that next time they come back,
-			// we’ll mark all unread on mount again:
 			initialAdminSnapshot.current = true;
 		};
 	}, [db, teamId]);
 
-	// Merge & sort whenever either stream changes, then auto-scroll
+	// Merge & scroll
 	useEffect(() => {
-		const combined = [...adminToTeamMsgs, ...teamToAdminMsgs];
-		combined.sort((a, b) => {
+		const combined = [...adminToTeamMsgs, ...teamToAdminMsgs].sort((a, b) => {
 			const aTs = a.timestamp?.toMillis?.() || 0;
 			const bTs = b.timestamp?.toMillis?.() || 0;
 			return aTs - bTs;
 		});
 		setMergedMessages(combined);
-
-		// Scroll to bottom on the next animation frame
 		requestAnimationFrame(() => {
-			if (chatEndRef.current) {
-				chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-			}
+			chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 		});
 	}, [adminToTeamMsgs, teamToAdminMsgs]);
 
-	// Sending a new message (team → admin)
 	const sendMessage = async () => {
 		if (!newMessageText.trim() || !teamId) return;
 		await addDoc(collection(db, 'messages'), {
@@ -181,7 +138,7 @@ function Chat({ user, db }) {
 
 	return (
 		<div className="relative h-screen bg-parchment">
-			{/* ── HEADER (fixed to top) ───────────────────────── */}
+			{/* HEADER */}
 			<div className="bg-charcoal fixed top-0 left-0 right-0 h-16 shadow-md flex items-center px-4 z-10">
 				<button
 					onClick={() => navigate('/dashboard')}
@@ -191,25 +148,25 @@ function Chat({ user, db }) {
 				</button>
 			</div>
 
-			{/* ── MESSAGE LIST (fixed between header & footer) ─── */}
+			{/* MESSAGE LIST */}
 			<div className="bg-parchment fixed top-16 bottom-16 left-0 right-0 overflow-y-auto px-2">
 				{mergedMessages.length === 0 ? (
-					<div className="flex h-full items-center justify-center ">
-						Say hello to your admins!
+					<div className="flex h-full items-center justify-center text-charcoal">
+						{t('chat.empty')}
 					</div>
 				) : (
 					mergedMessages.map((msg) => {
-						const isAdminMessage = msg.from === 'admin';
+						const isAdmin = msg.from === 'admin';
 						return (
 							<div
 								key={msg.id}
 								className={`mb-3 flex text-lg ${
-									isAdminMessage ? 'justify-start' : 'justify-end'
+									isAdmin ? 'justify-start' : 'justify-end'
 								}`}
 							>
 								<div
 									className={`max-w-[90%] px-5 py-2 rounded-lg ${
-										isAdminMessage
+										isAdmin
 											? 'bg-blue-600 text-parchment text-left'
 											: 'bg-green-600 text-parchment text-right'
 									}`}
@@ -217,22 +174,19 @@ function Chat({ user, db }) {
 									<p className="break-words">{msg.text}</p>
 									<div
 										className={`mt-1 text-xs flex items-center ${
-											isAdminMessage ? '' : 'justify-end'
+											isAdmin ? '' : 'justify-end'
 										}`}
 									>
 										<span>
 											{msg.timestamp
 												? new Date(msg.timestamp.toMillis()).toLocaleTimeString(
 														[],
-														{
-															hour: '2-digit',
-															minute: '2-digit',
-														}
+														{ hour: '2-digit', minute: '2-digit' }
 												  )
 												: ''}
 										</span>
-										{!isAdminMessage && msg.readByAdmin && (
-											<span className="ml-2">(seen)</span>
+										{!isAdmin && msg.readByAdmin && (
+											<span className="ml-2">{t('chat.seen')}</span>
 										)}
 									</div>
 								</div>
@@ -243,12 +197,12 @@ function Chat({ user, db }) {
 				<div ref={chatEndRef} />
 			</div>
 
-			{/* ── INPUT BAR (fixed to bottom) ───────────────────── */}
+			{/* INPUT BAR */}
 			<div className="bg-charcoal fixed bottom-0 left-0 right-0 h-16 p-2 flex items-center px-4 z-10">
 				<input
 					type="text"
 					className="flex-grow p-2 border border-gray-300 rounded-lg text-charcoal"
-					placeholder="Type your message…"
+					placeholder={t('chat.placeholder')}
 					value={newMessageText}
 					onChange={(e) => setNewMessageText(e.target.value)}
 					onKeyDown={(e) => {
@@ -267,7 +221,7 @@ function Chat({ user, db }) {
 							: 'bg-gray-300 text-gray-500 cursor-not-allowed'
 					}`}
 				>
-					send
+					{t('chat.send')}
 				</button>
 			</div>
 		</div>

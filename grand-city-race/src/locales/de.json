@@ -93,5 +93,11 @@
       "insufficientFunds": "Team {{name}} hat nicht genug Guthaben.",
       "process": "Ausraub-Vorgang fehlgeschlagen."
     }
+  },
+  "chat": {
+    "empty": "Sag deinen Gamemasters Hallo!",
+    "placeholder": "Gib deine Nachricht ein…",
+    "send": "Senden",
+    "seen": "(gesehen)"
   }
 }
