@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
 	doc,
 	getDoc,
@@ -15,6 +16,7 @@ function formatMMSS(totalSeconds) {
 }
 
 const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
+	const { t } = useTranslation();
 	const [localError, setLocalError] = useState('');
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [refundAvailable, setRefundAvailable] = useState();
@@ -36,23 +38,21 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 	const expiresAt =
 		userActiveItem?.type === 'immunity' ? userActiveItem.expiresAt : null;
 
+	// Check if we should refund instead of apply
 	useEffect(() => {
 		if (!expiresAt) return;
 
-		// Only clear refund if they're no longer cursed
 		async function clearRefundIfApplicable() {
 			try {
 				const teamRef = doc(db, 'teams', teamId);
 				const snap = await getDoc(teamRef);
 				const data = snap.data() || {};
 				const nowMs = Timestamp.now().toMillis();
-
 				const stillCursed = (data.cursedUntil?.toMillis() || 0) > nowMs;
 				if (!stillCursed) {
 					setHasApplied(true);
 					setRefundAvailable(false);
 				}
-				// else: leave refundAvailable = true
 			} catch (err) {
 				console.error('Failed to re-check curse status:', err);
 			}
@@ -61,13 +61,11 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 		clearRefundIfApplicable();
 	}, [expiresAt, db, teamId]);
 
-	// On mount or when expiresAt changes: apply immunity if not already applied
+	// On mount or when expiresAt changes: apply immunity if not already
 	useEffect(() => {
 		let cancelled = false;
 		async function init() {
-			// If we already have a countdown or refund state, skip
 			if (expiresAt || refundAvailable || hasApplied) return;
-
 			try {
 				const teamRef = doc(db, 'teams', teamId);
 				const snap = await getDoc(teamRef);
@@ -80,7 +78,6 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				) {
 					setRefundAvailable(true);
 				} else {
-					// apply immunity
 					const msImmune = selectedItem.duration * 60 * 1000;
 					const immuneUntil = Timestamp.fromMillis(now.toMillis() + msImmune);
 					await updateDoc(teamRef, { immuneUntil });
@@ -88,7 +85,7 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 				}
 			} catch (err) {
 				console.error(err);
-				setLocalError('Failed to apply immunity.');
+				setLocalError(t('immunity.errors.apply'));
 			}
 		}
 
@@ -103,6 +100,7 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 		expiresAt,
 		refundAvailable,
 		hasApplied,
+		t,
 	]);
 
 	// Countdown for active immunity
@@ -140,7 +138,7 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 			onClose();
 		} catch (err) {
 			console.error(err);
-			setLocalError('Failed to claim refund.');
+			setLocalError(t('immunity.errors.claimRefund'));
 		} finally {
 			setIsProcessing(false);
 		}
@@ -148,7 +146,6 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 
 	return (
 		<div className="relative bg-olive rounded-lg shadow-lg p-6">
-			{/* Close button: show unless refund UI is active */}
 			{!refundAvailable && (
 				<button
 					onClick={onClose}
@@ -163,25 +160,27 @@ const Immunity = ({ user, teamId, selectedItem, db, onClose, onUsed }) => {
 
 			{refundAvailable ? (
 				<div>
-					<p className="mb-4">
-						Your team is already immune or cursed. Here’s your money back.
-					</p>
+					<p className="mb-4">{t('immunity.refundMessage')}</p>
 					<button
 						onClick={handleBonusClaim}
 						disabled={isProcessing}
 						className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded"
 					>
-						{isProcessing ? 'Processing...' : 'Claim Refund'}
+						{isProcessing
+							? t('immunity.processing')
+							: t('immunity.claimRefund')}
 					</button>
 				</div>
 			) : hasApplied ? (
 				<div className="flex flex-col items-center">
-					<p className="mb-2 text-xl font-semibold">Your team is immune</p>
+					<p className="mb-2 text-xl font-semibold">
+						{t('immunity.active.title')}
+					</p>
 					<p className="mb-4 text-2xl">{formatMMSS(remainingSeconds)}</p>
 				</div>
 			) : (
 				<div>
-					<p>Applying immunity…</p>
+					<p>{t('immunity.applying')}</p>
 				</div>
 			)}
 		</div>

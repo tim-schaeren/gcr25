@@ -66,5 +66,18 @@
       "immune": "Team {{name}} ist gerade immun.",
       "processCurse": "Verfluchung fehlgeschlagen."
     }
+  },
+  "immunity": {
+    "errors": {
+      "apply": "Anwendung der Immunität fehlgeschlagen.",
+      "claimRefund": "Rückerstattung fehlgeschlagen."
+    },
+    "refundMessage": "Dein Team ist bereits immun oder verflucht. Hier ist dein Geld zurück.",
+    "processing": "Verarbeite…",
+    "claimRefund": "Rückerstattung abholen",
+    "active": {
+      "title": "Dein Team ist immun"
+    },
+    "applying": "Immunität wird angewendet…"
   }
 }

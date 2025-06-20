@@ -66,5 +66,18 @@
             "immune": "Team {{name}} is immune right now.",
             "processCurse": "Failed to process curse."
         }
+    },
+    "immunity": {
+        "errors": {
+            "apply": "Failed to apply immunity.",
+            "claimRefund": "Failed to claim refund."
+        },
+        "refundMessage": "Your team is already immune or cursed. Here’s your money back.",
+        "processing": "Processing...",
+        "claimRefund": "Claim Refund",
+        "active": {
+            "title": "Your team is immune"
+        },
+        "applying": "Applying immunity…"
     }
 }
