@@ -462,6 +462,32 @@ function Dashboard({ user, db }) {
 				</div>
 			)}
 
+			{team && (
+				<div className="absolute top-3 left-31">
+					<button
+						onClick={() => navigate('/leaderboard')}
+						aria-label="Leaderboard"
+						className="pointer-events-auto border border-charcoal text-charcoal bg-parchment hover:bg-parchment rounded-full px-4 py-4 shadow-sm"
+					>
+						<svg
+							width="33"
+							height="33"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M8 21H16M12 21V17M12 17C9.23858 17 7 14.7614 7 12V4H17V12C17 14.7614 14.7614 17 12 17ZM17 6H18.5C19.8807 6 21 7.11929 21 8.5C21 9.88071 19.8807 11 18.5 11H17M7 11H5.5C4.11929 11 3 9.88071 3 8.5C3 7.11929 4.11929 6 5.5 6H7"
+								stroke="#000000"
+								stroke-width="1.5"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+					</button>
+				</div>
+			)}
+
 			{/* Main Card */}
 			<div className="bg-charcoal p-6 rounded-xl shadow-md shadow-lg">
 				<h2 className="text-3xl font-bold text-center text-parchment">

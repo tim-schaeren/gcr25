@@ -20,6 +20,7 @@ import RegistrationManagement from './components/admin/RegistrationManagement';
 import SettingsPage from './components/admin/SettingsPage';
 import MessagesPage from './components/admin/Messages';
 import Menu from './components/user/Menu';
+import Leaderboard from './components/user/Leaderboard';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -162,6 +163,18 @@ function App() {
 						user ? (
 							<div className="user-theme">
 								<Chat user={user} db={db} />
+							</div>
+						) : (
+							<Navigate to="/login" />
+						)
+					}
+				/>
+				<Route
+					path="/leaderboard"
+					element={
+						user ? (
+							<div className="user-theme">
+								<Leaderboard user={user} db={db} />
 							</div>
 						) : (
 							<Navigate to="/login" />
